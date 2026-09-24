@@ -1,0 +1,1292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PM Assistant</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --panel2:#f8f9fb; --text:#1d2330; --muted:#6b7280; --line:#e4e7ec;
+  --accent:#2563eb; --accent-weak:#e8efff; --danger:#c62828; --danger-weak:#fdecec;
+  --warn:#a15c00; --warn-weak:#fff3df; --ok:#15803d; --ok-weak:#e6f5eb;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 6px rgba(16,24,40,.04);
+  --drawer:540px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#131519; --panel:#1b1e24; --panel2:#20242b; --text:#e6e8ec; --muted:#9aa1ad; --line:#2d323b;
+    --accent:#6b9bff; --accent-weak:#1e2a45; --danger:#f87171; --danger-weak:#3b1f22;
+    --warn:#fbbf24; --warn-weak:#3a2f17; --ok:#4ade80; --ok-weak:#16301f; --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",system-ui,-apple-system,"Microsoft YaHei",sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.app{display:flex;min-height:100vh}
+.side{width:200px;flex:none;background:var(--panel);border-right:1px solid var(--line);padding:16px 10px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.brand{font-weight:700;font-size:16px;padding:4px 10px 14px}
+.nav{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;border:0;background:none;text-align:left;width:100%}
+.nav:hover{background:var(--panel2)}
+.nav.on{background:var(--accent-weak);color:var(--accent);font-weight:600}
+.nav .n{margin-left:auto;font-size:12px;background:var(--danger);color:#fff;border-radius:10px;padding:0 7px}
+.side .foot{margin-top:auto;font-size:12px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--line)}
+.side .foot button{margin-top:6px}
+.main{flex:1;min-width:0;padding:20px 28px 60px;transition:margin-right .18s}
+@media (min-width:1100px){ body.drawer-open .main{margin-right:var(--drawer)} }
+.head{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.head h1{font-size:20px;margin:0;margin-right:auto}
+.btn{border:1px solid var(--line);background:var(--panel);padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:2px 8px;font-size:12px}
+.btn.link{border:0;background:none;color:var(--accent);padding:0 4px}
+.btn.icon{border:0;background:none;padding:2px 8px;font-size:16px;color:var(--muted)}
+.btn.icon:hover{color:var(--text)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .r{margin-left:auto;font-weight:400;display:flex;gap:6px;align-items:center}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
+.g3{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer}
+.stat b{display:block;font-size:24px;line-height:1.2}
+.stat span{color:var(--muted);font-size:12px}
+.stat.danger b{color:var(--danger)} .stat.warn b{color:var(--warn)}
+.muted{color:var(--muted)} .small{font-size:12px}
+.empty{color:var(--muted);padding:10px 0;font-size:13px}
+/* colors for statuses and record types */
+.c-gray{--c:#6b7280} .c-blue{--c:#2563eb} .c-purple{--c:#7c3aed} .c-amber{--c:#c27803} .c-red{--c:#dc2626}
+.c-green{--c:#16a34a} .c-teal{--c:#0d9488} .c-pink{--c:#db2777}
+@media (prefers-color-scheme: dark){
+  .c-gray{--c:#9ca3af} .c-blue{--c:#6b9bff} .c-purple{--c:#b794f6} .c-amber{--c:#fbbf24} .c-red{--c:#f87171}
+  .c-green{--c:#4ade80} .c-teal{--c:#2dd4bf} .c-pink{--c:#f472b6}
+}
+.chip{display:inline-block;font-size:12px;padding:0 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
+.chip.cc{background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);border-color:transparent}
+.chip.warn{background:var(--warn-weak);color:var(--warn);border-color:transparent}
+.chip.danger{background:var(--danger-weak);color:var(--danger);border-color:transparent}
+.chip.ok{background:var(--ok-weak);color:var(--ok);border-color:transparent}
+.sdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.trow{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px}
+.trow:last-child{border-bottom:0}
+.trow:hover{background:var(--panel2)}
+.trow.sel,.kcard.sel,tr.sel{background:var(--accent-weak)}
+.trow.done .ttitle{text-decoration:line-through;color:var(--muted)}
+.trow input[type=checkbox]{width:16px;height:16px;flex:none;cursor:pointer}
+.prio{width:4px;height:28px;border-radius:2px;flex:none}
+.p-high{background:var(--danger)} .p-medium{background:var(--warn)} .p-low{background:var(--line)}
+.tmain{flex:1;min-width:0}
+.ttitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.due{font-size:12px;white-space:nowrap;color:var(--muted)}
+.due.danger{color:var(--danger);font-weight:600} .due.warn{color:var(--warn);font-weight:600}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+input[type=text],input[type=date],input[type=number],input:not([type]),select,textarea{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 9px;outline:none;min-width:0}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{width:100%;resize:vertical}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:6px 12px;cursor:pointer}
+.seg button.on{background:var(--accent-weak);color:var(--accent);font-weight:600}
+.kanban{display:grid;gap:12px;align-items:start;overflow-x:auto;padding-bottom:6px}
+.col{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:200px}
+.col.over{border-color:var(--accent);background:var(--accent-weak)}
+.col h3{font-size:13px;margin:2px 4px 8px;display:flex;gap:6px;align-items:center}
+.col h3 .muted{font-weight:400}
+.kcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;cursor:grab;box-shadow:var(--shadow);border-left:3px solid var(--line)}
+.kcard.p-high{border-left-color:var(--danger)} .kcard.p-medium{border-left-color:var(--warn)}
+.kcard .ttitle{white-space:normal}
+.kcard .tmeta{margin-top:4px}
+.pcard{cursor:pointer}
+.pcard:hover{border-color:var(--accent)}
+.pcard h3{margin:0 0 2px;font-size:15px}
+.prog{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin:8px 0 4px;border:1px solid var(--line)}
+.prog i{display:block;height:100%;background:var(--ok)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
+.ts th.day{cursor:pointer}
+.ts th.day.on{color:var(--accent);background:var(--accent-weak)}
+.ts td.low{color:var(--warn)}
+.ts tfoot td{font-weight:600}
+/* centered modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:60}
+.modal[hidden]{display:none}
+.mbox{background:var(--panel);border-radius:12px;width:min(640px,100%);padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.mbox h2{margin:0 0 14px;font-size:17px;display:flex;align-items:center;gap:8px}
+.mbox h2 .x{margin-left:auto}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.form label>*{font-size:14px;color:var(--text)}
+.form .full{grid-column:1/-1}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;align-items:center}
+.actions .l{margin-right:auto}
+/* right-side task drawer */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:var(--drawer);max-width:100%;background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.08);z-index:40;display:flex;flex-direction:column;animation:slidein .18s ease-out}
+.drawer[hidden]{display:none}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.dhead{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 18px;border-bottom:1px solid var(--line)}
+.dhead .sp{flex:1}
+.dscroll{flex:1;overflow:auto;padding:14px 18px 40px}
+.dtitle{font-size:18px;font-weight:600;border:1px solid transparent;width:100%;padding:4px 6px;margin-left:-7px;border-radius:6px;background:transparent}
+.dtitle:hover{border-color:var(--line)}
+.props{display:grid;grid-template-columns:90px 1fr 90px 1fr;gap:8px 10px;align-items:center;margin:10px 0}
+.props>span{font-size:12px;color:var(--muted)}
+.props select,.props input{width:100%}
+.sect{font-size:13px;font-weight:600;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+.sect .r{margin-left:auto;font-weight:400}
+.composer{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel2)}
+.pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.pills label{cursor:pointer}
+.pills input{display:none}
+.pills span{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel)}
+.pills input:checked+span{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);font-weight:600}
+.crow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.crow[hidden]{display:none}
+.crow .sp{flex:1}
+.tlstats{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:6px}
+.tlstats b{color:var(--text)}
+.tlf{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tlf button{font-size:12px;padding:1px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel);cursor:pointer}
+.tlf button.on{background:var(--accent-weak);color:var(--accent);border-color:transparent;font-weight:600}
+.tl{position:relative;padding-left:26px}
+.tl::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.tl-day{position:relative;font-size:12px;font-weight:600;margin:14px 0 6px;display:flex;gap:8px}
+.tl-day:first-child{margin-top:0}
+.tl-day::before{content:"";position:absolute;left:-22px;top:5px;width:10px;height:10px;border-radius:3px;background:var(--panel);border:2px solid var(--muted)}
+.tl-day .muted{font-weight:400}
+.tl-item{position:relative;margin-bottom:8px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:8px;padding:6px 10px}
+.tl-item::before{content:"";position:absolute;left:-23px;top:10px;width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px var(--panel)}
+.tl-item .th{display:flex;gap:8px;align-items:center;font-size:12px}
+.tl-item .th b{color:var(--c)}
+.tl-item .th .sp{flex:1}
+.tl-item .tx{white-space:pre-wrap;word-break:break-word;margin-top:2px}
+.tl-item .cm{font-size:12px;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tl-item .del{visibility:hidden}
+.tl-item:hover .del{visibility:visible}
+.tl-sys{position:relative;font-size:12px;color:var(--muted);margin:0 0 8px;padding:2px 0 2px 2px}
+.tl-sys::before{content:"";position:absolute;left:-20px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--c,var(--muted))}
+.tl-sys .del{visibility:hidden}
+.tl-sys:hover .del{visibility:visible}
+/* timesheet + misc */
+.log{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.log .d{width:100px;flex:none;font-size:12px;color:var(--muted)}
+.log .c{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.log .h{font-size:12px;white-space:nowrap}
+.summary{font-family:Consolas,"Segoe UI",monospace;font-size:13px;min-height:220px}
+.srow{display:grid;grid-template-columns:110px 1fr auto auto auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.srow .ctl{display:flex;gap:2px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1d2330;color:#fff;padding:8px 16px;border-radius:8px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.banner{background:var(--warn-weak);color:var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:14px;display:flex;gap:10px;align-items:center}
+.welcome{max-width:640px}
+.welcome ol{padding-left:20px}
+.kbd{font-family:Consolas,monospace;font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 5px;background:var(--panel2)}
+@media (max-width:900px){
+  .app{flex-direction:column}
+  .side{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;padding:8px}
+  .side .foot,.brand{display:none}
+  .nav{width:auto}
+  .main{padding:16px}
+  .form{grid-template-columns:1fr}
+  .props{grid-template-columns:80px 1fr}
+  .g2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">PM Assistant</div>
+    <button class="nav" data-act="nav" data-view="today">Today<span class="n" id="n-today" hidden></span></button>
+    <button class="nav" data-act="nav" data-view="board">Task Board</button>
+    <button class="nav" data-act="nav" data-view="projects">Projects</button>
+    <button class="nav" data-act="nav" data-view="timesheet">Timesheet</button>
+    <button class="nav" data-act="nav" data-view="settings">Settings &amp; Data</button>
+    <div class="foot" id="file-badge"></div>
+  </aside>
+  <main class="main" id="main"></main>
+</div>
+<aside class="drawer" id="drawer" hidden aria-label="Task details"></aside>
+<div class="modal" id="modal" hidden></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="import-input" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+/* ---------- helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => ymd(new Date());
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+const weekStart = s => { const d = parse(s); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return ymd(d); };
+const dayDiff = (a, b) => Math.round((parse(a) - parse(b)) / 864e5);
+const WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtMD = s => s ? `${+s.slice(8, 10)} ${MON[+s.slice(5, 7) - 1]}` : '';
+const fmtDate = s => s ? `${WD[parse(s).getDay()]} ${fmtMD(s)}` : '';
+const fmtFull = s => s ? `${fmtDate(s)} ${s.slice(0, 4)}` : '';
+const relDay = s => { const d = dayDiff(today(), s); return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d === -1 ? 'Tomorrow' : fmtDate(s) + (s.slice(0, 4) !== today().slice(0, 4) ? ' ' + s.slice(0, 4) : ''); };
+const round2 = n => Math.round(n * 100) / 100;
+const fmtH = n => `${round2(n)}h`;
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const by = (f, dir = 1) => (a, b) => { const x = f(a), y = f(b); return x < y ? -dir : x > y ? dir : 0; };
+
+const COLORS = ['gray', 'blue', 'purple', 'amber', 'red', 'green', 'teal', 'pink'];
+const PRIO = {high: 'High', medium: 'Medium', low: 'Low'};
+const LOGTYPE = {work: 'Work log', note: 'Note', commit: 'Commitment', decision: 'Decision', risk: 'Risk / Issue'};
+const LOGCOLOR = {work: 'blue', note: 'gray', commit: 'amber', decision: 'green', risk: 'red', status: 'gray'};
+const PSTATUS = {active: 'Active', hold: 'On hold', closed: 'Closed'};
+const MSTATUS = {planned: 'Not started', doing: 'In progress', done: 'Done'};
+const DEFAULT_STATUSES = [
+  {id: 'todo', name: 'To Do', color: 'gray', done: false},
+  {id: 'doing', name: 'In Progress', color: 'blue', done: false},
+  {id: 'waiting', name: 'Waiting', color: 'purple', done: false},
+  {id: 'done', name: 'Done', color: 'green', done: true},
+];
+
+/* ---------- data ---------- */
+const KEY = 'pm-assistant-db-v1';
+function emptyDb() {
+  return {version: 2, updatedAt: 0,
+    settings: {me: '', hoursPerDay: 8, lastExport: 0, statuses: structuredClone(DEFAULT_STATUSES)},
+    projects: [], milestones: [], tasks: [], logs: []};
+}
+function migrate(d) {
+  d = Object.assign(emptyDb(), d || {});
+  d.settings = Object.assign(emptyDb().settings, d.settings || {});
+  if (!Array.isArray(d.settings.statuses) || !d.settings.statuses.length) d.settings.statuses = structuredClone(DEFAULT_STATUSES);
+  for (const k of ['projects', 'milestones', 'tasks', 'logs']) if (!Array.isArray(d[k])) d[k] = [];
+  d.version = 2;
+  return d;
+}
+function loadDb() {
+  try { const s = localStorage.getItem(KEY); if (s) return migrate(JSON.parse(s)); } catch (e) {}
+  return emptyDb();
+}
+let db = loadDb();
+function save() {
+  db.updatedAt = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+  scheduleFileSave();
+}
+
+const proj = id => db.projects.find(p => p.id === id);
+const task = id => db.tasks.find(t => t.id === id);
+const ms = id => db.milestones.find(m => m.id === id);
+const statuses = () => db.settings.statuses;
+const st = id => statuses().find(s => s.id === id) || statuses()[0];
+const firstOpen = () => statuses().find(s => !s.done) || statuses()[0];
+const firstDone = () => statuses().find(s => s.done) || statuses()[statuses().length - 1];
+const isDone = t => !!st(t.status).done;
+const isOpen = t => !isDone(t);
+const isActivity = l => l.type !== 'status';
+const projLabel = p => p ? (p.code ? `${p.code} ${p.name}` : p.name) : 'No project';
+const owners = () => [...new Set([db.settings.me, ...db.tasks.map(t => t.owner), ...db.logs.map(l => l.who)].filter(Boolean))].sort();
+const statusChip = id => { const s = st(id); return `<span class="chip cc c-${s.color}">${esc(s.name)}</span>`; };
+
+function setStatus(t, to) {
+  if (!t || t.status === to) return;
+  const from = t.status, now = Date.now();
+  t.status = to;
+  t.doneAt = st(to).done ? (st(from).done ? t.doneAt : now) : 0;
+  t.updatedAt = now;
+  db.logs.push({id: uid(), taskId: t.id, projectId: t.projectId, date: today(), type: 'status', from, to,
+    fromName: st(from).name, toName: st(to).name, text: '', hours: 0, createdAt: now});
+  if (ui.taskId === t.id) {
+    const sel = $('#drawer [name=status]'); if (sel) sel.value = to;
+    refreshTimeline();
+  }
+}
+
+/* ---------- data file (auto-save to a local JSON file) ---------- */
+let fileHandle = null, fileState = 'none', lastFileSave = 0, saveTimer = null;
+const fsSupported = 'showSaveFilePicker' in window;
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('pm-assistant', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function kv(k, v) {
+  const d = await idb();
+  return new Promise((res, rej) => {
+    const s = d.transaction('kv', v === undefined ? 'readonly' : 'readwrite').objectStore('kv');
+    const r = v === undefined ? s.get(k) : (v === null ? s.delete(k) : s.put(v, k));
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function initFile() {
+  if (!fsSupported) return renderBadge();
+  try {
+    const h = await kv('fileHandle');
+    if (h) {
+      fileHandle = h;
+      fileState = (await h.queryPermission({mode: 'readwrite'})) === 'granted' ? 'ok' : 'need';
+      if (fileState === 'ok') await syncFromFile();
+    }
+  } catch (e) {}
+  renderBadge();
+}
+async function syncFromFile() {
+  const txt = await (await fileHandle.getFile()).text();
+  if (txt.trim()) {
+    const data = migrate(JSON.parse(txt));
+    if ((data.updatedAt || 0) > (db.updatedAt || 0)) {
+      db = data;
+      try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+      render(); if (ui.taskId) renderDrawer();
+      toast('Loaded newer data from the data file');
+      return;
+    }
+  }
+  await writeFile();
+}
+function scheduleFileSave() {
+  if (fileState !== 'ok') return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(writeFile, 500);
+}
+async function writeFile() {
+  try {
+    const w = await fileHandle.createWritable();
+    await w.write(JSON.stringify(db, null, 1));
+    await w.close();
+    lastFileSave = Date.now();
+  } catch (e) { fileState = 'need'; }
+  renderBadge();
+}
+const JSON_TYPES = [{description: 'JSON', accept: {'application/json': ['.json']}}];
+async function linkNewFile() {
+  try {
+    const h = await showSaveFilePicker({suggestedName: 'pm-assistant-data.json', types: JSON_TYPES});
+    fileHandle = h; fileState = 'ok';
+    await kv('fileHandle', h);
+    await writeFile();
+    toast('Data file connected. Changes now save automatically.');
+    render();
+  } catch (e) { if (e.name !== 'AbortError') toast('Could not connect: ' + e.message); }
+}
+async function linkExistingFile() {
+  try {
+    const [h] = await showOpenFilePicker({types: JSON_TYPES});
+    const data = migrate(JSON.parse(await (await h.getFile()).text()));
+    if (!confirm(`Replace current data with this file?\nThe file has ${plural(data.projects.length, 'project')} and ${plural(data.tasks.length, 'task')}.`)) return;
+    if ((await h.requestPermission({mode: 'readwrite'})) !== 'granted') return toast('Write permission was not granted');
+    db = data; fileHandle = h; fileState = 'ok';
+    await kv('fileHandle', h);
+    save(); closeDrawer(); render();
+    toast('Data file loaded and connected');
+  } catch (e) { if (e.name !== 'AbortError') toast('Could not open: ' + e.message); }
+}
+async function reconnectFile() {
+  try {
+    if ((await fileHandle.requestPermission({mode: 'readwrite'})) === 'granted') {
+      fileState = 'ok'; await syncFromFile(); toast('Data file reconnected');
+    }
+  } catch (e) { toast('Could not reconnect: ' + e.message); }
+  renderBadge();
+}
+async function unlinkFile() {
+  fileHandle = null; fileState = 'none';
+  await kv('fileHandle', null);
+  render();
+}
+function renderBadge() {
+  const el = $('#file-badge');
+  if (fileState === 'ok') el.innerHTML = `Auto-saving to<br><b>${esc(fileHandle.name)}</b>${lastFileSave ? `<br>${new Date(lastFileSave).toLocaleTimeString()}` : ''}`;
+  else if (fileState === 'need') el.innerHTML = `Data file needs permission<br><button class="btn sm primary" data-act="reconnect-file">Reconnect</button>`;
+  else el.innerHTML = `Data is saved in this browser only<br><button class="btn sm" data-act="nav" data-view="settings">Set up backup</button>`;
+}
+
+/* ---------- UI state ---------- */
+let view = 'today';
+const ui = {
+  board: {project: '', owner: '', q: '', due: '', mode: 'kanban', showDone: false},
+  projectId: null, showClosed: false,
+  tsWeek: weekStart(today()), tsDay: today(),
+  taskId: null, newTask: null, tlFilter: 'all',
+};
+
+/* ---------- shared pieces ---------- */
+function dueInfo(t) {
+  if (!t.due) return {cls: '', txt: 'No due date'};
+  const diff = dayDiff(t.due, today());
+  if (isDone(t)) return {cls: '', txt: fmtMD(t.due)};
+  if (diff < 0) return {cls: 'danger', txt: `Overdue ${-diff}d`};
+  if (diff === 0) return {cls: 'warn', txt: 'Due today'};
+  if (diff === 1) return {cls: 'warn', txt: 'Due tomorrow'};
+  if (diff <= 7) return {cls: '', txt: fmtDate(t.due)};
+  return {cls: '', txt: fmtMD(t.due) + (t.due.slice(0, 4) !== today().slice(0, 4) ? ' ' + t.due.slice(0, 4) : '')};
+}
+const openCommitCount = id => db.logs.filter(l => l.taskId === id && l.type === 'commit' && !l.commitDone).length;
+function taskMeta(t, showProject, showStatus = true) {
+  const p = proj(t.projectId), c = openCommitCount(t.id);
+  return `${showProject && p ? `<span class="chip">${esc(p.code || p.name)}</span>` : ''}
+    ${showStatus ? statusChip(t.status) : ''}
+    ${t.owner ? `<span>${esc(t.owner)}</span>` : ''}
+    ${c ? `<span class="chip warn">${plural(c, 'commitment')}</span>` : ''}`;
+}
+function taskRow(t, showProject = true) {
+  const d = dueInfo(t);
+  return `<div class="trow ${isDone(t) ? 'done' : ''} ${ui.taskId === t.id ? 'sel' : ''}" data-act="open-task" data-id="${t.id}">
+    <input type="checkbox" data-act="toggle-done" data-id="${t.id}" ${isDone(t) ? 'checked' : ''} title="Mark as done">
+    <span class="prio p-${t.priority}" title="Priority: ${PRIO[t.priority]}"></span>
+    <div class="tmain"><div class="ttitle">${esc(t.title)}</div><div class="tmeta">${taskMeta(t, showProject)}</div></div>
+    <div class="due ${d.cls}">${esc(d.txt)}</div></div>`;
+}
+const taskList = (list, showProject = true, emptyText = 'No tasks') =>
+  list.length ? list.map(t => taskRow(t, showProject)).join('') : `<div class="empty">${emptyText}</div>`;
+const sortTasks = list => list.slice().sort((a, b) =>
+  isDone(a) - isDone(b) || (a.due || '9999').localeCompare(b.due || '9999') ||
+  ['high', 'medium', 'low'].indexOf(a.priority) - ['high', 'medium', 'low'].indexOf(b.priority));
+const recentDone = t => isDone(t) && t.doneAt && Date.now() - t.doneAt < 14 * 864e5;
+
+function projOptions(sel, {none = 'No project', closed = false} = {}) {
+  const list = db.projects.filter(p => closed || p.status !== 'closed' || p.id === sel);
+  return (none ? `<option value="">${none}</option>` : '') +
+    list.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(projLabel(p))}</option>`).join('');
+}
+function msOptions(projectId, sel) {
+  return `<option value="">None</option>` + db.milestones.filter(m => m.projectId === projectId)
+    .sort(by(m => m.planDate || '')).map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+}
+function taskOptions(projectId, sel) {
+  return `<option value="">None</option>` + sortTasks(db.tasks.filter(t => (t.projectId || '') === projectId && (isOpen(t) || t.id === sel || recentDone(t))))
+    .map(t => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>${esc(t.title)}</option>`).join('');
+}
+const opts = (map, sel) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+const statusOptions = sel => statuses().map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+const ownerList = () => `<datalist id="owners">${owners().map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function openModal(html) {
+  const m = $('#modal'); m.innerHTML = `<div class="mbox" role="dialog">${html}</div>`; m.hidden = false;
+  setTimeout(() => { const f = m.querySelector('[autofocus]'); if (f) f.focus(); });
+}
+function closeModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
+
+/* ---------- view: Today ---------- */
+const views = {};
+views.today = () => {
+  if (!db.projects.length && !db.tasks.length) return welcome();
+  const td = today(), open = db.tasks.filter(isOpen);
+  const overdue = sortTasks(open.filter(t => t.due && t.due < td));
+  const dueToday = sortTasks(open.filter(t => t.due === td));
+  const soon = sortTasks(open.filter(t => t.due > td && t.due <= addDays(td, 7)));
+  const active = sortTasks(open.filter(t => t.status !== firstOpen().id && !(t.due && t.due <= addDays(td, 7))));
+  const commits = db.logs.filter(l => l.type === 'commit' && !l.commitDone).sort(by(l => l.commitDue || '9999'));
+  const todayLogs = db.logs.filter(l => l.date === td && isActivity(l));
+  const hours = todayLogs.reduce((s, l) => s + (+l.hours || 0), 0);
+  return `
+  <div class="head"><h1>Today · ${fmtFull(td)}</h1><button class="btn primary" data-act="new-task">+ New task</button></div>
+  ${backupBanner()}
+  <div class="stats">
+    <div class="stat danger" data-act="board-filter" data-due="overdue"><b>${overdue.length}</b><span>Overdue</span></div>
+    <div class="stat warn" data-act="board-filter" data-due="today"><b>${dueToday.length}</b><span>Due today</span></div>
+    <div class="stat" data-act="board-filter" data-due="week"><b>${soon.length}</b><span>Due in next 7 days</span></div>
+    <div class="stat ${commits.some(c => c.commitDue && c.commitDue < td) ? 'danger' : ''}"><b>${commits.length}</b><span>Open commitments</span></div>
+    <div class="stat" data-act="nav" data-view="timesheet"><b>${fmtH(hours)}</b><span>Logged today / ${db.settings.hoursPerDay}h</span></div>
+  </div>
+  <form class="card bar" data-form="quick-task">
+    <input name="title" placeholder="Quick add a task, press Enter" style="flex:1;min-width:220px" autocomplete="off">
+    <select name="projectId">${projOptions(ui.board.project === '_none' ? '' : ui.board.project)}</select>
+    <input name="owner" placeholder="Owner" list="owners" value="${esc(db.settings.me)}" style="width:120px">
+    <input type="date" name="due" title="Due date">
+    <button class="btn primary">Add</button>${ownerList()}
+  </form>
+  <div class="grid g2">
+    <div>
+      <div class="card"><h2>Needs action now <span class="muted small">Overdue and due today</span></h2>${taskList([...overdue, ...dueToday], true, 'Nothing overdue or due today')}</div>
+      <div class="card"><h2>Due in the next 7 days</h2>${taskList(soon, true, 'Nothing due in the next 7 days')}</div>
+      <div class="card"><h2>Other active tasks</h2>${taskList(active, true, 'None')}</div>
+    </div>
+    <div>
+      <div class="card"><h2>Open commitments <span class="muted small">Who promised what</span></h2>${commitList(commits)}</div>
+      <div class="card"><h2>Logged today <span class="r"><button class="btn sm" data-act="quick-log">+ Log time</button></span></h2>${logList(todayLogs)}</div>
+    </div>
+  </div>`;
+};
+function commitList(list) {
+  if (!list.length) return '<div class="empty">No open commitments</div>';
+  const td = today();
+  return list.map(l => {
+    const t = task(l.taskId), late = l.commitDue && l.commitDue < td;
+    return `<div class="trow ${t && ui.taskId === t.id ? 'sel' : ''}" ${t ? `data-act="open-task" data-id="${t.id}"` : ''}>
+      <input type="checkbox" data-act="toggle-commit" data-id="${l.id}" title="Mark as kept">
+      <div class="tmain"><div class="ttitle">${esc(l.text)}</div>
+      <div class="tmeta">${l.who ? `<span>By ${esc(l.who)}</span>` : ''}${t ? `<span>· ${esc(t.title)}</span>` : ''}</div></div>
+      <div class="due ${late ? 'danger' : ''}">${l.commitDue ? (late ? `Overdue ${dayDiff(td, l.commitDue)}d` : fmtDate(l.commitDue)) : ''}</div></div>`;
+  }).join('');
+}
+function logList(list) {
+  if (!list.length) return '<div class="empty">Nothing logged yet</div>';
+  return list.slice().sort(by(l => l.createdAt || 0)).map(l => {
+    const t = task(l.taskId), p = proj(l.projectId);
+    return `<div class="log"><div class="d"><span class="chip cc c-${LOGCOLOR[l.type]}">${LOGTYPE[l.type]}</span></div>
+      <div class="c"><div class="small muted">${esc(p ? (p.code || p.name) : 'No project')}${t ? ` · <a href="#" data-act="open-task" data-id="${t.id}">${esc(t.title)}</a>` : ''}</div>${esc(l.text)}</div>
+      <div class="h">${l.hours ? fmtH(+l.hours) : ''}</div>
+      <button class="btn link small" data-act="del-log" data-id="${l.id}">Delete</button></div>`;
+  }).join('');
+}
+function backupBanner() {
+  if (fileState === 'ok' || !db.tasks.length) return '';
+  const days = db.settings.lastExport ? Math.floor((Date.now() - db.settings.lastExport) / 864e5) : null;
+  if (days !== null && days < 7) return '';
+  return `<div class="banner">Your data is only saved in this browser. Clearing browser data will delete it. <button class="btn sm" data-act="nav" data-view="settings">Set up auto-save</button></div>`;
+}
+function welcome() {
+  return `<div class="head"><h1>Welcome to PM Assistant</h1></div>
+  <div class="card welcome">
+    <p>This is a local tool. All data stays on your computer. Nothing is sent to any server.</p>
+    <ol>
+      <li>In <b>Settings &amp; Data</b>, enter your name and connect a data file. A folder in your company OneDrive is a good place.</li>
+      <li>In <b>Projects</b>, create a project. Use the same project code as your timesheet.</li>
+      <li>Add tasks to the project. Each time you work on a task, add a <b>Work log</b> with hours.</li>
+      <li>Open <b>Timesheet</b> to see daily and weekly hours. Copy the daily summary into your timesheet.</li>
+    </ol>
+    <div class="actions" style="justify-content:flex-start">
+      <button class="btn primary" data-act="new-project">Create your first project</button>
+      <button class="btn" data-act="load-sample">Load sample data</button>
+    </div>
+    <p class="small muted">Shortcuts: <span class="kbd">N</span> new task, <span class="kbd">L</span> log time, <span class="kbd">Esc</span> close panel.</p>
+  </div>`;
+}
+
+/* ---------- view: Task Board ---------- */
+views.board = () => {
+  const b = ui.board;
+  return `<div class="head"><h1>Task Board</h1>
+    <div class="seg"><button class="${b.mode === 'kanban' ? 'on' : ''}" data-act="board-mode" data-mode="kanban">Board</button><button class="${b.mode === 'list' ? 'on' : ''}" data-act="board-mode" data-mode="list">List</button></div>
+    <button class="btn" data-act="edit-statuses">Customize columns</button>
+    <button class="btn primary" data-act="new-task">+ New task</button></div>
+  <div class="bar">
+    <input data-filter="q" placeholder="Search tasks and records" value="${esc(b.q)}" style="width:220px">
+    <select data-filter="project"><option value="">All projects</option><option value="_none" ${b.project === '_none' ? 'selected' : ''}>No project</option>${projOptions(b.project, {none: '', closed: true})}</select>
+    <select data-filter="owner"><option value="">All owners</option>${owners().map(o => `<option ${o === b.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <select data-filter="due">${opts({'': 'Any due date', overdue: 'Overdue', today: 'Due today', week: 'Due within 7 days', nodue: 'No due date'}, b.due)}</select>
+    <label class="small"><input type="checkbox" data-filter="showDone" ${b.showDone ? 'checked' : ''}> Show all done tasks</label>
+  </div>
+  <div id="board-body">${boardBody()}</div>`;
+};
+function boardTasks() {
+  const b = ui.board, td = today(), q = b.q.trim().toLowerCase();
+  return db.tasks.filter(t => {
+    if (b.project === '_none' ? t.projectId : b.project && t.projectId !== b.project) return false;
+    if (b.owner && t.owner !== b.owner) return false;
+    if (b.due === 'overdue' && !(isOpen(t) && t.due && t.due < td)) return false;
+    if (b.due === 'today' && !(isOpen(t) && t.due === td)) return false;
+    if (b.due === 'week' && !(isOpen(t) && t.due && t.due <= addDays(td, 7))) return false;
+    if (b.due === 'nodue' && t.due) return false;
+    if (!b.showDone && isDone(t) && !recentDone(t)) return false;
+    if (q) {
+      const hay = [t.title, t.desc, t.owner, ...db.logs.filter(l => l.taskId === t.id).map(l => l.text)].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function boardBody() {
+  const list = sortTasks(boardTasks());
+  if (ui.board.mode === 'list') {
+    if (!list.length) return '<div class="card empty">No tasks match these filters</div>';
+    return `<div class="card"><table><thead><tr><th></th><th>Task</th><th>Project</th><th>Owner</th><th>Status</th><th>Due</th><th class="num">Hours</th></tr></thead><tbody>
+      ${list.map(t => { const d = dueInfo(t), p = proj(t.projectId), c = openCommitCount(t.id);
+        const h = db.logs.filter(l => l.taskId === t.id).reduce((s, l) => s + (+l.hours || 0), 0);
+        return `<tr class="click ${ui.taskId === t.id ? 'sel' : ''}" data-act="open-task" data-id="${t.id}">
+          <td><input type="checkbox" data-act="toggle-done" data-id="${t.id}" ${isDone(t) ? 'checked' : ''}></td>
+          <td>${esc(t.title)} ${c ? `<span class="chip warn">${plural(c, 'commitment')}</span>` : ''}</td>
+          <td>${esc(p ? (p.code || p.name) : '-')}</td><td>${esc(t.owner || '-')}</td>
+          <td>${statusChip(t.status)}</td>
+          <td class="due ${d.cls}">${esc(d.txt)}</td><td class="num">${h ? fmtH(h) : ''}</td></tr>`; }).join('')}
+      </tbody></table><div class="small muted" style="margin-top:8px">${plural(list.length, 'task')}</div></div>`;
+  }
+  const cols = statuses();
+  return `<div class="kanban" style="grid-template-columns:repeat(${cols.length},minmax(230px,1fr))">${cols.map(s => {
+    const col = list.filter(t => st(t.status).id === s.id);
+    return `<div class="col" data-drop="${s.id}"><h3><span class="sdot c-${s.color}"></span>${esc(s.name)} <span class="muted">${col.length}</span></h3>
+      ${col.map(t => { const d = dueInfo(t);
+        return `<div class="kcard p-${t.priority} ${ui.taskId === t.id ? 'sel' : ''}" draggable="true" data-drag="${t.id}" data-act="open-task" data-id="${t.id}">
+          <div class="ttitle">${esc(t.title)}</div>
+          <div class="tmeta">${taskMeta(t, true, false)}</div>
+          <div class="due ${d.cls}" style="margin-top:4px">${esc(d.txt)}</div></div>`; }).join('')}
+    </div>`; }).join('')}</div>
+    <p class="small muted">Tip: drag a card to change its status. Done columns show tasks finished in the last 14 days only.</p>`;
+}
+
+/* ---------- view: Projects ---------- */
+views.projects = () => {
+  const order = ['active', 'hold', 'closed'];
+  const list = db.projects.filter(p => ui.showClosed || p.status !== 'closed')
+    .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || a.name.localeCompare(b.name));
+  const td = today();
+  return `<div class="head"><h1>Projects</h1>
+    <label class="small"><input type="checkbox" data-act="toggle-closed" ${ui.showClosed ? 'checked' : ''}> Show closed projects</label>
+    <button class="btn primary" data-act="new-project">+ New project</button></div>
+  ${list.length ? `<div class="grid g3">${list.map(p => {
+    const ts = db.tasks.filter(t => t.projectId === p.id), done = ts.filter(isDone).length;
+    const late = ts.filter(t => isOpen(t) && t.due && t.due < td).length;
+    const next = db.milestones.filter(m => m.projectId === p.id && m.status !== 'done').sort(by(m => m.planDate || '9999'))[0];
+    const pct = ts.length ? Math.round(done / ts.length * 100) : 0;
+    return `<div class="card pcard" data-act="open-project" data-id="${p.id}">
+      <div style="display:flex;gap:8px;align-items:center"><h3>${esc(p.name)}</h3><span class="chip ${p.status === 'active' ? 'ok' : p.status === 'hold' ? 'warn' : ''}" style="margin-left:auto">${PSTATUS[p.status]}</span></div>
+      <div class="small muted">${esc(p.code || 'No project code')}${p.client ? ' · ' + esc(p.client) : ''}${p.end ? ' · Ends ' + fmtMD(p.end) : ''}</div>
+      <div class="prog"><i style="width:${pct}%"></i></div>
+      <div class="small">${done}/${ts.length} tasks done ${late ? `<span class="chip danger">${late} overdue</span>` : ''}</div>
+      <div class="small muted" style="margin-top:4px">Next milestone: ${next ? `${esc(next.name)} (${next.planDate ? fmtMD(next.planDate) : 'no date'})${next.planDate && next.planDate < td ? ' <span class="chip danger">Late</span>' : ''}` : 'none'}</div>
+    </div>`; }).join('')}</div>` : '<div class="card empty">No projects yet. Click "New project" to start.</div>'}`;
+};
+views.project = () => {
+  const p = proj(ui.projectId);
+  if (!p) { view = 'projects'; return views.projects(); }
+  const td = today();
+  const ts = db.tasks.filter(t => t.projectId === p.id);
+  const mss = db.milestones.filter(m => m.projectId === p.id).sort(by(m => m.planDate || '9999'));
+  const logs = db.logs.filter(l => l.projectId === p.id && isActivity(l)).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+  const hours = logs.reduce((s, l) => s + (+l.hours || 0), 0);
+  const commits = logs.filter(l => l.type === 'commit' && !l.commitDone).sort(by(l => l.commitDue || '9999'));
+  const risks = logs.filter(l => l.type === 'risk').slice(0, 5);
+  const left = p.end ? dayDiff(p.end, td) : null;
+  return `<div class="head"><button class="btn" data-act="nav" data-view="projects">← Projects</button>
+    <h1>${esc(p.name)} <span class="chip ${p.status === 'active' ? 'ok' : p.status === 'hold' ? 'warn' : ''}">${PSTATUS[p.status]}</span></h1>
+    <button class="btn" data-act="edit-project" data-id="${p.id}">Edit project</button>
+    <button class="btn primary" data-act="new-task" data-project="${p.id}">+ New task</button></div>
+  <div class="card small">
+    <b>Code:</b> ${esc(p.code || '-')} &nbsp; <b>Client / Dept:</b> ${esc(p.client || '-')} &nbsp;
+    <b>Period:</b> ${p.start ? fmtMD(p.start) : '?'} – ${p.end ? fmtFull(p.end) : '?'}${left !== null && p.status !== 'closed' ? ` (${left >= 0 ? `${plural(left, 'day')} left` : `${plural(-left, 'day')} over`})` : ''} &nbsp;
+    <b>Total hours:</b> ${fmtH(hours)}
+    ${p.desc ? `<div class="muted" style="margin-top:6px;white-space:pre-wrap">${esc(p.desc)}</div>` : ''}
+  </div>
+  <div class="card"><h2>Plan · Milestones <span class="r"><button class="btn sm" data-act="new-milestone" data-project="${p.id}">+ Milestone</button></span></h2>
+    ${mss.length ? `<table><thead><tr><th>Milestone</th><th>Planned</th><th>Actual</th><th>Status</th><th>Variance</th><th class="num">Tasks</th></tr></thead><tbody>
+    ${mss.map(m => {
+      const mt = ts.filter(t => t.milestoneId === m.id), md = mt.filter(isDone).length;
+      let dev = '';
+      if (m.status === 'done' && m.actualDate && m.planDate) { const d = dayDiff(m.actualDate, m.planDate); dev = d > 0 ? `<span class="chip danger">${plural(d, 'day')} late</span>` : `<span class="chip ok">On time</span>`; }
+      else if (m.status !== 'done' && m.planDate && m.planDate < td) dev = `<span class="chip danger">Late by ${plural(dayDiff(td, m.planDate), 'day')}</span>`;
+      else if (m.status !== 'done' && m.planDate && dayDiff(m.planDate, td) <= 7) dev = `<span class="chip warn">Due in ${plural(dayDiff(m.planDate, td), 'day')}</span>`;
+      return `<tr class="click" data-act="edit-milestone" data-id="${m.id}"><td>${esc(m.name)}${m.note ? `<div class="small muted">${esc(m.note)}</div>` : ''}</td>
+        <td>${m.planDate ? fmtMD(m.planDate) : '-'}</td><td>${m.actualDate ? fmtMD(m.actualDate) : '-'}</td>
+        <td><span class="chip cc c-${m.status === 'done' ? 'green' : m.status === 'doing' ? 'blue' : 'gray'}">${MSTATUS[m.status]}</span></td>
+        <td>${dev}</td><td class="num">${mt.length ? `${md}/${mt.length}` : '-'}</td></tr>`; }).join('')}
+    </tbody></table>` : '<div class="empty">No milestones yet. Add the key dates first, for example: requirements sign-off, build complete, UAT, go-live.</div>'}
+  </div>
+  <div class="grid g2">
+    <div class="card"><h2>Tasks <span class="muted small">${ts.filter(isOpen).length} open</span></h2>${taskList(sortTasks(ts.filter(t => isOpen(t) || recentDone(t))), false, 'No tasks yet')}</div>
+    <div>
+      <div class="card"><h2>Open commitments</h2>${commitList(commits)}</div>
+      <div class="card"><h2>Recent risks and issues</h2>${risks.length ? risks.map(l => `<div class="log"><div class="d">${fmtMD(l.date)}</div><div class="c">${esc(l.text)}</div></div>`).join('') : '<div class="empty">None recorded</div>'}</div>
+      <div class="card"><h2>Recent records</h2>${logs.slice(0, 12).map(l => { const t = task(l.taskId);
+        return `<div class="log"><div class="d">${fmtMD(l.date)}<br><span class="chip cc c-${LOGCOLOR[l.type]}">${LOGTYPE[l.type]}</span></div><div class="c">${t ? `<div class="small muted">${esc(t.title)}</div>` : ''}${esc(l.text)}</div><div class="h">${l.hours ? fmtH(+l.hours) : ''}</div></div>`; }).join('') || '<div class="empty">No records</div>'}</div>
+    </div>
+  </div>`;
+};
+
+/* ---------- view: Timesheet ---------- */
+views.timesheet = () => {
+  const days = [...Array(7)].map((_, i) => addDays(ui.tsWeek, i));
+  if (!days.includes(ui.tsDay)) ui.tsDay = days.includes(today()) ? today() : days[0];
+  const wlogs = db.logs.filter(l => +l.hours > 0 && l.date >= days[0] && l.date <= days[6]);
+  const rows = {};
+  for (const l of wlogs) { const k = l.projectId || ''; rows[k] = rows[k] || {}; rows[k][l.date] = (rows[k][l.date] || 0) + +l.hours; }
+  const keys = Object.keys(rows).sort((a, b) => projLabel(proj(a)).localeCompare(projLabel(proj(b))));
+  const colTotal = d => keys.reduce((s, k) => s + (rows[k][d] || 0), 0);
+  const weekTotal = days.reduce((s, d) => s + colTotal(d), 0);
+  const std = +db.settings.hoursPerDay || 8;
+  const dayLogs = db.logs.filter(l => l.date === ui.tsDay && isActivity(l));
+  return `<div class="head"><h1>Timesheet</h1>
+    <button class="btn" data-act="ts-week" data-n="-7">◀ Previous</button>
+    <button class="btn" data-act="ts-week" data-n="0">This week</button>
+    <button class="btn" data-act="ts-week" data-n="7">Next ▶</button>
+    <button class="btn" data-act="export-csv">Export week (CSV)</button></div>
+  <div class="card ts"><h2>${fmtMD(days[0])} – ${fmtFull(days[6])} <span class="muted small">Click a day to see its details</span><span class="r small">Week total <b>${fmtH(weekTotal)}</b></span></h2>
+    <table><thead><tr><th>Project</th>${days.map(d => `<th class="num day ${d === ui.tsDay ? 'on' : ''}" data-act="ts-day" data-d="${d}">${WD[parse(d).getDay()]}<br>${fmtMD(d)}</th>`).join('')}<th class="num">Total</th></tr></thead>
+    <tbody>${keys.length ? keys.map(k => `<tr><td>${esc(projLabel(proj(k)))}</td>${days.map(d => `<td class="num">${rows[k][d] ? round2(rows[k][d]) : ''}</td>`).join('')}<td class="num"><b>${round2(days.reduce((s, d) => s + (rows[k][d] || 0), 0))}</b></td></tr>`).join('')
+      : `<tr><td colspan="9" class="empty">No hours logged this week</td></tr>`}</tbody>
+    <tfoot><tr><td>Daily total</td>${days.map(d => { const t = colTotal(d), wd = parse(d).getDay();
+      const low = t < std && wd > 0 && wd < 6 && d <= today();
+      return `<td class="num ${low ? 'low' : ''}">${t ? round2(t) : low ? '0' : ''}</td>`; }).join('')}<td class="num">${round2(weekTotal)}</td></tr></tfoot></table>
+    <div class="small muted" style="margin-top:6px">Workdays with less than ${std}h are shown in orange.</div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h2>Records for ${fmtDate(ui.tsDay)} <span class="r"><button class="btn sm primary" data-act="quick-log" data-d="${ui.tsDay}">+ Log time</button></span></h2>${logList(dayLogs)}</div>
+    <div class="card"><h2>Daily summary <span class="r"><button class="btn sm primary" data-act="copy-summary">Copy</button></span></h2>
+      <textarea class="summary" id="summary">${esc(daySummary(ui.tsDay))}</textarea>
+      <div class="small muted">You can edit the text before copying.</div></div>
+  </div>`;
+};
+function daySummary(date) {
+  const logs = db.logs.filter(l => l.date === date && isActivity(l)).sort(by(l => l.createdAt || 0));
+  if (!logs.length) return `${fmtFull(date)}\nNo records.`;
+  const total = logs.reduce((s, l) => s + (+l.hours || 0), 0);
+  const groups = {};
+  for (const l of logs) (groups[l.projectId || ''] = groups[l.projectId || ''] || []).push(l);
+  let out = `${fmtFull(date)} - Total ${fmtH(total)}\n`;
+  for (const [pid, ls] of Object.entries(groups)) {
+    const h = ls.reduce((s, l) => s + (+l.hours || 0), 0);
+    out += `\n[${pid ? projLabel(proj(pid)) : 'General'}] ${h ? fmtH(h) : ''}\n`;
+    for (const l of ls) {
+      const t = task(l.taskId);
+      const tag = l.type === 'work' ? '' : `[${LOGTYPE[l.type]}] `;
+      out += `- ${tag}${t ? t.title + ': ' : ''}${l.text.replace(/\n+/g, ' ')}${l.hours ? ` (${fmtH(+l.hours)})` : ''}\n`;
+    }
+  }
+  return out.trim();
+}
+function exportCsv() {
+  const days = [...Array(7)].map((_, i) => addDays(ui.tsWeek, i));
+  const logs = db.logs.filter(l => l.date >= days[0] && l.date <= days[6] && isActivity(l)).sort(by(l => l.date));
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['Date', 'Weekday', 'Project Code', 'Project', 'Task', 'Type', 'Hours', 'Content'].join(',')];
+  for (const l of logs) {
+    const p = proj(l.projectId), t = task(l.taskId);
+    lines.push([l.date, WD[parse(l.date).getDay()], p?.code, p?.name, t?.title, LOGTYPE[l.type], l.hours || '', l.text].map(q).join(','));
+  }
+  download(`timesheet-${days[0]}.csv`, '﻿' + lines.join('\r\n'), 'text/csv');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- view: Settings ---------- */
+views.settings = () => {
+  const s = db.settings, hasSample = [...db.projects, ...db.tasks].some(x => x.sample);
+  return `<div class="head"><h1>Settings &amp; Data</h1></div>
+  <form class="card" data-form="settings"><h2>General</h2>
+    <div class="form">
+      <label>My name (default owner for new tasks)<input name="me" value="${esc(s.me)}"></label>
+      <label>Standard hours per day<input type="number" name="hoursPerDay" step="0.5" min="0" value="${esc(s.hoursPerDay)}"></label>
+    </div>
+    <div class="actions"><button class="btn primary">Save</button></div>
+  </form>
+  <div class="card"><h2>Board columns</h2>
+    <p style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${statuses().map(x => `<span class="chip cc c-${x.color}">${esc(x.name)}${x.done ? ' ✓' : ''}</span>`).join('')}</p>
+    <button class="btn" data-act="edit-statuses">Customize columns</button>
+  </div>
+  <div class="card"><h2>Data file (recommended)</h2>
+    ${fsSupported ? `<p>Save your data to a JSON file automatically. Put it in your company OneDrive folder. Then it is backed up and follows company storage rules.</p>
+      <p>Status: ${fileState === 'ok' ? `<span class="chip ok">Connected</span> ${esc(fileHandle.name)}` : fileState === 'need' ? `<span class="chip warn">Needs permission</span> ${esc(fileHandle.name)}` : '<span class="chip">Not connected</span>'}</p>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn primary" data-act="link-new-file">Create data file</button>
+        <button class="btn" data-act="link-existing-file">Open existing data file</button>
+        ${fileState === 'need' ? '<button class="btn" data-act="reconnect-file">Reconnect</button>' : ''}
+        ${fileHandle ? '<button class="btn danger" data-act="unlink-file">Disconnect</button>' : ''}
+      </div>
+      <p class="small muted">After you restart the browser, you may need to click "Reconnect" once. This is a browser security rule.</p>`
+    : `<p>This browser cannot save to a file automatically. Open this tool in Microsoft Edge or Chrome, or export a backup regularly.</p>`}
+  </div>
+  <div class="card"><h2>Backup and restore</h2>
+    <p class="small muted">Last manual export: ${s.lastExport ? new Date(s.lastExport).toLocaleString() : 'never'}. You have ${plural(db.projects.length, 'project')}, ${plural(db.tasks.length, 'task')} and ${plural(db.logs.filter(isActivity).length, 'record')}.</p>
+    <div class="actions" style="justify-content:flex-start">
+      <button class="btn" data-act="export-json">Export backup (JSON)</button>
+      <button class="btn" data-act="import-json">Restore from backup</button>
+      ${hasSample ? '<button class="btn" data-act="remove-sample">Remove sample data</button>' : '<button class="btn" data-act="load-sample">Load sample data</button>'}
+      <button class="btn danger" data-act="clear-all">Delete all data</button>
+    </div>
+  </div>
+  <div class="card small muted"><h2>About</h2>
+    This tool is a single local HTML file. It has no network features and uploads nothing.<br>
+    Shortcuts: <span class="kbd">N</span> new task, <span class="kbd">L</span> log time, <span class="kbd">Esc</span> close panel.
+  </div>`;
+};
+
+/* ---------- task drawer (docked on the right) ---------- */
+function openTask(id) {
+  ui.taskId = id; ui.newTask = null; ui.tlFilter = 'all';
+  renderDrawer(); render();
+}
+function newTask(preset = {}) {
+  ui.taskId = null;
+  ui.newTask = {projectId: preset.projectId ?? (view === 'project' ? ui.projectId : ui.board.project === '_none' ? '' : ui.board.project)};
+  renderDrawer(); render();
+  setTimeout(() => { const i = $('#drawer [name=title]'); if (i) i.focus(); });
+}
+function closeDrawer() {
+  if (!ui.taskId && !ui.newTask) return;
+  ui.taskId = null; ui.newTask = null;
+  $('#drawer').hidden = true; $('#drawer').innerHTML = '';
+  document.body.classList.remove('drawer-open');
+  render();
+}
+function renderDrawer() {
+  const d = $('#drawer'), isNew = !ui.taskId;
+  const t = isNew ? {id: '', title: '', projectId: ui.newTask.projectId || '', milestoneId: '', owner: db.settings.me, due: '', priority: 'medium', status: firstOpen().id, desc: ''} : task(ui.taskId);
+  if (!t) return closeDrawer();
+  const p = proj(t.projectId);
+  d.hidden = false; document.body.classList.add('drawer-open');
+  d.innerHTML = `
+  <div class="dhead">
+    <span class="small muted">${isNew ? 'New task' : 'Task'}</span>
+    ${!isNew && p ? `<span class="chip" id="d-proj">${esc(p.code || p.name)}</span>` : ''}
+    <span class="sp"></span>
+    ${!isNew ? `<button class="btn sm danger" data-act="del-task" data-id="${t.id}">Delete</button>` : ''}
+    <button class="btn icon" data-act="close-drawer" title="Close (Esc)">✕</button>
+  </div>
+  <div class="dscroll">
+    <form data-form="task" data-id="${t.id}">
+      <input class="dtitle" name="title" value="${esc(t.title)}" placeholder="Task name" required autocomplete="off">
+      <div class="props">
+        <span>Status</span><select name="status">${statusOptions(t.status)}</select>
+        <span>Priority</span><select name="priority">${opts(PRIO, t.priority)}</select>
+        <span>Project</span><select name="projectId">${projOptions(t.projectId)}</select>
+        <span>Milestone</span><select name="milestoneId">${msOptions(t.projectId, t.milestoneId)}</select>
+        <span>Owner</span><input name="owner" list="owners" value="${esc(t.owner)}">
+        <span>Due date</span><input type="date" name="due" value="${esc(t.due)}">
+      </div>
+      <textarea name="desc" rows="3" placeholder="Description, scope, links…">${esc(t.desc)}</textarea>
+      ${ownerList()}
+      ${isNew ? `<div class="actions"><button type="button" class="btn" data-act="close-drawer">Cancel</button><button class="btn primary">Create task</button></div>`
+        : `<div class="small muted" style="margin-top:4px">Changes save automatically.</div>`}
+    </form>
+    ${isNew ? '' : `
+    <div class="sect">Add an update</div>
+    <form class="composer" data-form="log" data-task="${t.id}">
+      <div class="pills">${Object.entries(LOGTYPE).map(([k, v]) => `<label class="c-${LOGCOLOR[k]}"><input type="radio" name="type" value="${k}" ${k === 'work' ? 'checked' : ''}><span><i class="sdot"></i>${v}</span></label>`).join('')}</div>
+      <textarea name="text" rows="2" required placeholder="What did you do? What was decided? Who promised what?"></textarea>
+      <div class="crow cf" hidden>
+        <span class="small muted">Promised by</span><input name="who" list="owners" value="${esc(t.owner)}" style="width:130px">
+        <span class="small muted">by date</span><input type="date" name="commitDue">
+      </div>
+      <div class="crow">
+        <input type="date" name="date" value="${today()}" required title="Date">
+        <input type="number" name="hours" step="0.25" min="0" placeholder="Hours" style="width:90px" title="Hours spent">
+        <span class="sp"></span><button class="btn primary">Add update</button>
+      </div>
+    </form>
+    <div class="sect">Activity</div>
+    <div id="timeline"></div>`}
+  </div>`;
+  if (!isNew) refreshTimeline();
+}
+function refreshTimeline() {
+  const el = $('#timeline'), t = task(ui.taskId);
+  if (!el || !t) return;
+  const all = db.logs.filter(l => l.taskId === t.id);
+  const f = ui.tlFilter;
+  const shown = all.filter(l => f === 'all' || l.type === f);
+  const acts = all.filter(isActivity);
+  const hours = all.reduce((s, l) => s + (+l.hours || 0), 0);
+  const openC = all.filter(l => l.type === 'commit' && !l.commitDone).length;
+  const created = ymd(new Date(t.createdAt || Date.now()));
+  const age = dayDiff(isDone(t) && t.doneAt ? ymd(new Date(t.doneAt)) : today(), created);
+  const counts = type => all.filter(l => l.type === type).length;
+  const filters = [['all', 'All'], ...Object.entries(LOGTYPE).filter(([k]) => counts(k)), ...(counts('status') ? [['status', 'Status changes']] : [])];
+  const items = shown.slice();
+  if (f === 'all') items.push({type: 'created', date: created, createdAt: (t.createdAt || 0) - 1});
+  items.sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+  const groups = [];
+  for (const it of items) { const g = groups[groups.length - 1]; if (g && g.date === it.date) g.items.push(it); else groups.push({date: it.date, items: [it]}); }
+  const td = today();
+  el.innerHTML = `
+    <div class="tlstats"><span><b>${fmtH(hours)}</b> logged</span><span><b>${acts.length}</b> ${acts.length === 1 ? 'update' : 'updates'}</span>
+      <span><b>${openC}</b> open ${openC === 1 ? 'commitment' : 'commitments'}</span><span>${isDone(t) ? 'Finished after' : 'Open for'} <b>${plural(age, 'day')}</b></span></div>
+    ${filters.length > 2 ? `<div class="tlf">${filters.map(([k, v]) => `<button data-act="tl-filter" data-f="${k}" class="${f === k ? 'on' : ''}">${v}</button>`).join('')}</div>` : ''}
+    <div class="tl">${groups.map(g => {
+      const gh = g.items.reduce((s, l) => s + (+l.hours || 0), 0);
+      return `<div class="tl-day">${relDay(g.date)}${g.date === td || dayDiff(td, g.date) === 1 ? ` <span class="muted">${fmtDate(g.date)}</span>` : ''}${gh ? ` <span class="muted">· ${fmtH(gh)}</span>` : ''}</div>` +
+        g.items.map(l => {
+          if (l.type === 'created') return `<div class="tl-sys c-gray">Task created</div>`;
+          if (l.type === 'status') {
+            const name = (id, saved) => statuses().find(s => s.id === id)?.name || saved || id;
+            const color = statuses().find(s => s.id === l.to)?.color || 'gray';
+            return `<div class="tl-sys c-${color}">Status: ${esc(name(l.from, l.fromName))} → <b>${esc(name(l.to, l.toName))}</b> <button class="btn link small del" data-act="del-log" data-id="${l.id}">Delete</button></div>`;
+          }
+          const late = l.type === 'commit' && !l.commitDone && l.commitDue && l.commitDue < td;
+          return `<div class="tl-item c-${LOGCOLOR[l.type]}">
+            <div class="th"><b>${LOGTYPE[l.type]}</b>${l.hours ? `<span class="chip">${fmtH(+l.hours)}</span>` : ''}<span class="sp"></span>
+              <button class="btn link small del" data-act="del-log" data-id="${l.id}">Delete</button></div>
+            <div class="tx">${esc(l.text)}</div>
+            ${l.type === 'commit' ? `<div class="cm">
+              <label><input type="checkbox" data-act="toggle-commit" data-id="${l.id}" ${l.commitDone ? 'checked' : ''}> Kept</label>
+              ${l.who ? `<span class="muted">By ${esc(l.who)}</span>` : ''}
+              ${l.commitDue ? `<span class="${late ? 'chip danger' : 'muted'}">${late ? 'Overdue · ' : 'Due '}${fmtDate(l.commitDue)}</span>` : ''}</div>` : ''}
+          </div>`;
+        }).join('');
+    }).join('') || '<div class="empty">No updates yet.</div>'}</div>`;
+}
+function autosaveTask(el) {
+  const f = el.form, t = task(f.dataset.id); if (!t) return;
+  const k = el.name, v = el.value;
+  if (k === 'title') { if (!v.trim()) { el.value = t.title; return; } t.title = v.trim(); }
+  else if (k === 'status') setStatus(t, v);
+  else if (k === 'projectId') {
+    t.projectId = v; t.milestoneId = '';
+    for (const l of db.logs) if (l.taskId === t.id) l.projectId = v;
+    const p = proj(v), chip = $('#d-proj');
+    if (chip) chip.textContent = p ? (p.code || p.name) : '';
+  }
+  else if (['priority', 'milestoneId', 'owner', 'due', 'desc'].includes(k)) t[k] = typeof v === 'string' && k !== 'desc' ? v.trim() : v;
+  else return;
+  t.updatedAt = Date.now();
+  save(); render();
+}
+
+/* ---------- modals: quick log, project, milestone, statuses ---------- */
+function quickLogModal(date) {
+  const pid = view === 'project' ? ui.projectId : '';
+  openModal(`<h2>Log time<button class="btn link x" data-act="close">Close ✕</button></h2>
+  <form data-form="quick-log"><div class="form">
+    <label>Date<input type="date" name="date" value="${date || today()}" required></label>
+    <label>Hours<input type="number" name="hours" step="0.25" min="0" required autofocus></label>
+    <label>Project<select name="projectId" data-task-target>${projOptions(pid)}</select></label>
+    <label>Task (optional)<select name="taskId">${taskOptions(pid, '')}</select></label>
+    <label>Type<select name="type">${opts(LOGTYPE, 'work')}</select></label>
+    <label class="full">What did you do?<textarea name="text" rows="3" required placeholder="Example: weekly status meeting, follow up UAT issues"></textarea></label>
+  </div><div class="actions"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save</button></div></form>`);
+}
+function projectModal(id) {
+  const p = id ? proj(id) : {id: '', name: '', code: '', client: '', status: 'active', start: today(), end: '', desc: ''};
+  openModal(`<h2>${id ? 'Edit project' : 'New project'}<button class="btn link x" data-act="close">Close ✕</button></h2>
+  <form data-form="project" data-id="${p.id}"><div class="form">
+    <label class="full">Project name<input name="name" required value="${esc(p.name)}" autofocus></label>
+    <label>Project code (for timesheet)<input name="code" value="${esc(p.code)}" placeholder="e.g. PRJ-001"></label>
+    <label>Client / Department<input name="client" value="${esc(p.client)}"></label>
+    <label>Start date<input type="date" name="start" value="${esc(p.start)}"></label>
+    <label>Planned end date<input type="date" name="end" value="${esc(p.end)}"></label>
+    <label>Status<select name="status">${opts(PSTATUS, p.status)}</select></label>
+    <label class="full">Description (goals, scope, stakeholders)<textarea name="desc" rows="3">${esc(p.desc)}</textarea></label>
+  </div><div class="actions">${id ? `<button type="button" class="btn danger l" data-act="del-project" data-id="${p.id}">Delete project</button>` : ''}
+    <button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save</button></div></form>`);
+}
+function milestoneModal(id, projectId) {
+  const m = id ? ms(id) : {id: '', projectId, name: '', planDate: '', actualDate: '', status: 'planned', note: ''};
+  openModal(`<h2>${id ? 'Edit milestone' : 'New milestone'}<button class="btn link x" data-act="close">Close ✕</button></h2>
+  <form data-form="milestone" data-id="${m.id}" data-project="${m.projectId}"><div class="form">
+    <label class="full">Name<input name="name" required value="${esc(m.name)}" autofocus placeholder="e.g. UAT complete"></label>
+    <label>Planned date<input type="date" name="planDate" value="${esc(m.planDate)}"></label>
+    <label>Actual date<input type="date" name="actualDate" value="${esc(m.actualDate)}"></label>
+    <label>Status<select name="status">${opts(MSTATUS, m.status)}</select></label>
+    <label class="full">Note<textarea name="note" rows="2">${esc(m.note)}</textarea></label>
+  </div><div class="actions">${id ? `<button type="button" class="btn danger l" data-act="del-milestone" data-id="${m.id}">Delete</button>` : ''}
+    <button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save</button></div></form>`);
+}
+let statusDraft = null;
+function statusModal() {
+  const counts = id => db.tasks.filter(t => t.status === id).length;
+  const kept = new Set(statusDraft.map(s => s.id));
+  const lost = statuses().filter(s => !kept.has(s.id) && counts(s.id));
+  const fallback = statusDraft.find(s => !s.done);
+  openModal(`<h2>Customize board columns<button class="btn link x" data-act="close">Close ✕</button></h2>
+  <p class="small muted">Rename, reorder, add or remove columns. Tick "Done" for columns that mean the task is finished. You need at least one Done column and one open column.</p>
+  <div>${statusDraft.map((s, i) => `<div class="srow">
+    <select data-sfield="color" data-i="${i}" class="c-${s.color}">${COLORS.map(c => `<option value="${c}" ${c === s.color ? 'selected' : ''}>● ${c}</option>`).join('')}</select>
+    <input data-sfield="name" data-i="${i}" value="${esc(s.name)}" placeholder="Column name">
+    <label class="small"><input type="checkbox" data-sfield="done" data-i="${i}" ${s.done ? 'checked' : ''}> Done</label>
+    <span class="small muted">${plural(counts(s.id), 'task')}</span>
+    <span class="ctl"><button class="btn sm" data-act="s-move" data-i="${i}" data-d="-1" ${i ? '' : 'disabled'}>↑</button><button class="btn sm" data-act="s-move" data-i="${i}" data-d="1" ${i < statusDraft.length - 1 ? '' : 'disabled'}>↓</button>
+      <button class="btn sm danger" data-act="s-del" data-i="${i}">Remove</button></span>
+  </div>`).join('')}</div>
+  <div style="margin-top:10px"><button class="btn sm" data-act="s-add">+ Add column</button></div>
+  ${lost.length && fallback ? `<p class="small" style="color:var(--warn)">Tasks in removed columns (${lost.map(s => esc(s.name)).join(', ')}) will move to "${esc(fallback.name)}".</p>` : ''}
+  <div class="actions"><button type="button" class="btn l" data-act="s-reset">Reset to default</button><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="s-save">Save</button></div>`);
+}
+
+/* ---------- form handlers ---------- */
+const forms = {
+  task(f, d) {
+    if (f.dataset.id) { document.activeElement?.blur(); return; }
+    const title = d.get('title').trim(); if (!title) return;
+    const now = Date.now(), status = d.get('status');
+    const t = {id: uid(), title, projectId: d.get('projectId'), milestoneId: d.get('milestoneId'), owner: d.get('owner').trim(),
+      due: d.get('due'), status, priority: d.get('priority'), desc: d.get('desc').trim(), createdAt: now, updatedAt: now, doneAt: st(status).done ? now : 0};
+    db.tasks.push(t);
+    save(); openTask(t.id); toast('Task created');
+  },
+  'quick-task'(f, d) {
+    const title = d.get('title').trim(); if (!title) return;
+    const now = Date.now();
+    db.tasks.push({id: uid(), title, projectId: d.get('projectId'), milestoneId: '', owner: d.get('owner').trim(), due: d.get('due'),
+      status: firstOpen().id, priority: 'medium', desc: '', createdAt: now, updatedAt: now, doneAt: 0});
+    save(); render(); toast('Task added');
+    setTimeout(() => { const i = $('[data-form="quick-task"] [name=title]'); if (i) i.focus(); });
+  },
+  log(f, d) {
+    const t = task(f.dataset.task), text = d.get('text').trim(); if (!t || !text) return;
+    const type = d.get('type');
+    db.logs.push({id: uid(), taskId: t.id, projectId: t.projectId, date: d.get('date') || today(), type, text,
+      hours: +d.get('hours') || 0, who: type === 'commit' ? d.get('who').trim() : '', commitDue: type === 'commit' ? d.get('commitDue') : '',
+      commitDone: false, createdAt: Date.now()});
+    t.updatedAt = Date.now();
+    save();
+    f.text.value = ''; f.hours.value = '';
+    refreshTimeline(); render(); toast('Update added');
+  },
+  'quick-log'(f, d) {
+    const text = d.get('text').trim(); if (!text) return;
+    db.logs.push({id: uid(), taskId: d.get('taskId'), projectId: d.get('projectId'), date: d.get('date'), type: d.get('type'), text,
+      hours: +d.get('hours') || 0, who: '', commitDue: '', commitDone: false, createdAt: Date.now()});
+    ui.tsDay = d.get('date');
+    save(); closeModal(); render(); refreshTimeline(); toast('Time logged');
+  },
+  project(f, d) {
+    const id = f.dataset.id;
+    const data = {name: d.get('name').trim(), code: d.get('code').trim(), client: d.get('client').trim(), start: d.get('start'), end: d.get('end'), status: d.get('status'), desc: d.get('desc').trim()};
+    if (!data.name) return;
+    if (id) Object.assign(proj(id), data);
+    else { const p = {id: uid(), createdAt: Date.now(), ...data}; db.projects.push(p); ui.projectId = p.id; view = 'project'; }
+    save(); closeModal(); render(); toast('Project saved');
+  },
+  milestone(f, d) {
+    const id = f.dataset.id;
+    const data = {name: d.get('name').trim(), planDate: d.get('planDate'), actualDate: d.get('actualDate'), status: d.get('status'), note: d.get('note').trim()};
+    if (data.status === 'done' && !data.actualDate) data.actualDate = today();
+    if (id) Object.assign(ms(id), data);
+    else db.milestones.push({id: uid(), projectId: f.dataset.project, ...data});
+    save(); closeModal(); render();
+  },
+  settings(f, d) {
+    db.settings.me = d.get('me').trim();
+    db.settings.hoursPerDay = +d.get('hoursPerDay') || 8;
+    save(); render(); toast('Settings saved');
+  },
+};
+
+/* ---------- click actions ---------- */
+const actions = {
+  nav: a => { view = a.dataset.view; closeModal(); render(); window.scrollTo(0, 0); },
+  close: () => closeModal(),
+  'close-drawer': () => closeDrawer(),
+  'new-task': a => newTask({projectId: a.dataset.project}),
+  'open-task': a => a.dataset.id && openTask(a.dataset.id),
+  'toggle-done': a => {
+    const t = task(a.dataset.id);
+    setStatus(t, isDone(t) ? firstOpen().id : firstDone().id);
+    save(); render();
+    if (isDone(t)) toast('Done: ' + t.title);
+  },
+  'toggle-commit': a => {
+    const l = db.logs.find(x => x.id === a.dataset.id); l.commitDone = !l.commitDone; save();
+    refreshTimeline(); render();
+  },
+  'del-log': a => {
+    const l = db.logs.find(x => x.id === a.dataset.id);
+    if (!confirm('Delete this record?')) return;
+    db.logs = db.logs.filter(x => x !== l); save(); refreshTimeline(); render();
+  },
+  'tl-filter': a => { ui.tlFilter = a.dataset.f; refreshTimeline(); },
+  'del-task': a => {
+    const t = task(a.dataset.id), n = db.logs.filter(l => l.taskId === t.id && isActivity(l)).length;
+    if (!confirm(`Delete task "${t.title}"?${n ? `\nIts ${plural(n, 'record')} (including hours) will also be deleted.` : ''}\nIf the task is finished, set its status to Done instead.`)) return;
+    db.tasks = db.tasks.filter(x => x !== t); db.logs = db.logs.filter(l => l.taskId !== t.id);
+    save(); closeDrawer(); render();
+  },
+  'new-project': () => projectModal(),
+  'edit-project': a => projectModal(a.dataset.id),
+  'open-project': a => { ui.projectId = a.dataset.id; view = 'project'; render(); window.scrollTo(0, 0); },
+  'del-project': a => {
+    const p = proj(a.dataset.id), nt = db.tasks.filter(t => t.projectId === p.id).length, nl = db.logs.filter(l => l.projectId === p.id && isActivity(l)).length;
+    if (!confirm(`Delete project "${p.name}"?\nThis also deletes ${plural(nt, 'task')} and ${plural(nl, 'record')} (including hours).\nIf the project has ended, set its status to Closed instead.`)) return;
+    db.projects = db.projects.filter(x => x !== p);
+    db.tasks = db.tasks.filter(t => t.projectId !== p.id);
+    db.logs = db.logs.filter(l => l.projectId !== p.id);
+    db.milestones = db.milestones.filter(m => m.projectId !== p.id);
+    if (ui.taskId && !task(ui.taskId)) closeDrawer();
+    save(); closeModal(); view = 'projects'; render();
+  },
+  'toggle-closed': () => { ui.showClosed = !ui.showClosed; render(); },
+  'new-milestone': a => milestoneModal(null, a.dataset.project),
+  'edit-milestone': a => milestoneModal(a.dataset.id),
+  'del-milestone': a => {
+    if (!confirm('Delete this milestone? Its tasks will be kept.')) return;
+    db.milestones = db.milestones.filter(m => m.id !== a.dataset.id);
+    for (const t of db.tasks) if (t.milestoneId === a.dataset.id) t.milestoneId = '';
+    save(); closeModal(); render();
+  },
+  'board-mode': a => { ui.board.mode = a.dataset.mode; render(); },
+  'board-filter': a => { Object.assign(ui.board, {project: '', owner: '', q: '', due: a.dataset.due}); view = 'board'; render(); },
+  'edit-statuses': () => { statusDraft = structuredClone(statuses()); statusModal(); },
+  's-move': a => { const i = +a.dataset.i, j = i + +a.dataset.d; [statusDraft[i], statusDraft[j]] = [statusDraft[j], statusDraft[i]]; statusModal(); },
+  's-del': a => { statusDraft.splice(+a.dataset.i, 1); statusModal(); },
+  's-add': () => { statusDraft.splice(Math.max(statusDraft.findIndex(s => s.done), 0) || statusDraft.length, 0, {id: uid(), name: 'New column', color: 'teal', done: false}); statusModal();
+    setTimeout(() => { const ins = document.querySelectorAll('#modal [data-sfield=name]'); const n = [...ins].find(i => i.value === 'New column'); if (n) { n.focus(); n.select(); } }); },
+  's-reset': () => {
+    const known = new Set(DEFAULT_STATUSES.map(s => s.id));
+    statusDraft = [...structuredClone(DEFAULT_STATUSES), ...statusDraft.filter(s => !known.has(s.id) && db.tasks.some(t => t.status === s.id))];
+    statusModal();
+  },
+  's-save': () => {
+    const draft = statusDraft.map(s => ({...s, name: s.name.trim()}));
+    if (draft.some(s => !s.name)) return alert('Every column needs a name.');
+    if (!draft.some(s => s.done)) return alert('Mark at least one column as Done.');
+    if (!draft.some(s => !s.done)) return alert('You need at least one column that is not Done.');
+    const ids = new Set(draft.map(s => s.id)), fb = draft.find(s => !s.done), fbDone = draft.find(s => s.done);
+    for (const t of db.tasks) if (!ids.has(t.status)) t.status = isDone(t) ? fbDone.id : fb.id;
+    db.settings.statuses = draft;
+    for (const t of db.tasks) { if (st(t.status).done && !t.doneAt) t.doneAt = Date.now(); if (!st(t.status).done) t.doneAt = 0; }
+    save(); closeModal(); render(); if (ui.taskId) renderDrawer(); toast('Columns saved');
+  },
+  'quick-log': a => quickLogModal(a.dataset.d),
+  'ts-week': a => { const n = +a.dataset.n; ui.tsWeek = n ? addDays(ui.tsWeek, n) : weekStart(today()); ui.tsDay = n ? addDays(ui.tsDay, n) : today(); render(); },
+  'ts-day': a => { ui.tsDay = a.dataset.d; render(); },
+  'copy-summary': async () => {
+    const txt = $('#summary').value;
+    try { await navigator.clipboard.writeText(txt); } catch (e) { $('#summary').select(); document.execCommand('copy'); }
+    toast('Copied to clipboard');
+  },
+  'export-csv': () => exportCsv(),
+  'export-json': () => {
+    db.settings.lastExport = Date.now(); save();
+    download(`pm-assistant-backup-${today()}.json`, JSON.stringify(db, null, 1), 'application/json'); render();
+  },
+  'import-json': () => $('#import-input').click(),
+  'link-new-file': () => linkNewFile(),
+  'link-existing-file': () => linkExistingFile(),
+  'reconnect-file': () => reconnectFile(),
+  'unlink-file': () => unlinkFile(),
+  'load-sample': () => { loadSample(); save(); view = 'today'; render(); toast('Sample data loaded. You can remove it in Settings.'); },
+  'remove-sample': () => {
+    if (!confirm('Remove all sample projects, tasks and records? Your own data is kept.')) return;
+    const ids = new Set(db.projects.filter(p => p.sample).map(p => p.id));
+    db.projects = db.projects.filter(p => !p.sample);
+    db.milestones = db.milestones.filter(m => !ids.has(m.projectId));
+    db.tasks = db.tasks.filter(t => !t.sample && !ids.has(t.projectId));
+    db.logs = db.logs.filter(l => !l.sample && !ids.has(l.projectId));
+    if (ui.taskId && !task(ui.taskId)) closeDrawer();
+    save(); render();
+  },
+  'clear-all': () => {
+    if (!confirm('Delete all data? This cannot be undone. Export a backup first.')) return;
+    if (prompt('Type DELETE to confirm') !== 'DELETE') return;
+    const s = db.settings; db = emptyDb(); db.settings = s; closeDrawer(); save(); view = 'today'; render();
+  },
+};
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  if (e.target.id === 'modal') return closeModal();
+  const a = e.target.closest('[data-act]');
+  if (!a || !actions[a.dataset.act]) return;
+  if (a.tagName === 'A') e.preventDefault();
+  actions[a.dataset.act](a, e);
+});
+document.addEventListener('submit', e => {
+  const f = e.target; if (!forms[f.dataset.form]) return;
+  e.preventDefault(); forms[f.dataset.form](f, new FormData(f));
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.filter) {
+    ui.board[el.dataset.filter] = el.type === 'checkbox' ? el.checked : el.value;
+    $('#board-body').innerHTML = boardBody();
+  }
+  if (el.dataset.sfield === 'name') statusDraft[+el.dataset.i].name = el.value;
+});
+document.addEventListener('change', e => {
+  const el = e.target, form = el.form;
+  if (el.dataset.filter !== undefined && el.tagName === 'SELECT') { ui.board[el.dataset.filter] = el.value; $('#board-body').innerHTML = boardBody(); }
+  if (el.dataset.sfield === 'color') { statusDraft[+el.dataset.i].color = el.value; statusModal(); }
+  if (el.dataset.sfield === 'done') statusDraft[+el.dataset.i].done = el.checked;
+  if (el.hasAttribute('data-task-target')) form.taskId.innerHTML = taskOptions(el.value, '');
+  if (form && form.dataset.form === 'task') {
+    if (el.name === 'projectId') form.milestoneId.innerHTML = msOptions(el.value, '');
+    if (form.dataset.id) autosaveTask(el);
+  }
+  if (form && form.dataset.form === 'log' && el.name === 'type') form.querySelector('.cf').hidden = el.value !== 'commit';
+});
+$('#import-input').addEventListener('change', async e => {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  try {
+    const data = migrate(JSON.parse(await file.text()));
+    if (!confirm(`Replace current data with this backup?\nThe backup has ${plural(data.projects.length, 'project')}, ${plural(data.tasks.length, 'task')} and ${plural(data.logs.length, 'record')}.`)) return;
+    db = data; closeDrawer(); save(); render(); toast('Backup restored');
+  } catch (err) { alert('This file is not a valid backup: ' + err.message); }
+});
+document.addEventListener('dragstart', e => { const c = e.target.closest && e.target.closest('[data-drag]'); if (c) e.dataTransfer.setData('text/plain', c.dataset.drag); });
+document.addEventListener('dragover', e => { const c = e.target.closest && e.target.closest('[data-drop]'); if (c) { e.preventDefault(); c.classList.add('over'); } });
+document.addEventListener('dragleave', e => { const c = e.target.closest && e.target.closest('[data-drop]'); if (c && !c.contains(e.relatedTarget)) c.classList.remove('over'); });
+document.addEventListener('drop', e => {
+  const c = e.target.closest && e.target.closest('[data-drop]'); if (!c) return;
+  e.preventDefault();
+  const t = task(e.dataTransfer.getData('text/plain')); if (!t) return;
+  setStatus(t, c.dataset.drop); save();
+  $('#board-body').innerHTML = boardBody();
+});
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase(), typing = ['input', 'textarea', 'select'].includes(tag);
+  if (e.key === 'Escape') {
+    if (!$('#modal').hidden) return closeModal();
+    if (typing && e.target.closest('#drawer')) return e.target.blur();
+    if (!$('#drawer').hidden) return closeDrawer();
+  }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey || !$('#modal').hidden) return;
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); newTask(); }
+  if (e.key === 'l' || e.key === 'L') { e.preventDefault(); quickLogModal(view === 'timesheet' ? ui.tsDay : today()); }
+});
+// refresh when the date changes
+let lastDay = today();
+setInterval(() => { if (today() !== lastDay) { lastDay = today(); render(); refreshTimeline(); } }, 60000);
+// keep several open tabs in sync
+window.addEventListener('storage', e => { if (e.key === KEY && e.newValue) { db = migrate(JSON.parse(e.newValue)); render(); if (ui.taskId) renderDrawer(); } });
+
+/* ---------- render ---------- */
+function render() {
+  document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.view === (view === 'project' ? 'projects' : view)));
+  $('#main').innerHTML = views[view]();
+  const td = today(), n = db.tasks.filter(t => isOpen(t) && t.due && t.due <= td).length;
+  const b = $('#n-today'); b.hidden = !n; b.textContent = n;
+  renderBadge();
+}
+
+/* ---------- sample data ---------- */
+function loadSample() {
+  const td = today(), me = db.settings.me || 'Me', now = Date.now();
+  let seq = 0;
+  const P = (name, code, client, s, e, desc) => { const p = {id: uid(), name, code, client, status: 'active', start: addDays(td, s), end: addDays(td, e), desc, sample: true, createdAt: now}; db.projects.push(p); return p; };
+  const M = (p, name, plan, status, actual) => { const m = {id: uid(), projectId: p.id, name, planDate: addDays(td, plan), actualDate: actual != null ? addDays(td, actual) : '', status, note: ''}; db.milestones.push(m); return m; };
+  const T = (p, m, title, owner, due, status, priority, age) => { const t = {id: uid(), projectId: p.id, milestoneId: m ? m.id : '', title, owner, due: due == null ? '' : addDays(td, due), status, priority, desc: '', sample: true, createdAt: now - age * 864e5, updatedAt: now, doneAt: status === 'done' ? now - 20 * 864e5 : 0}; db.tasks.push(t); return t; };
+  const L = (t, p, day, type, text, hours, extra = {}) => db.logs.push({id: uid(), taskId: t ? t.id : '', projectId: p.id, date: addDays(td, day), type, text, hours, who: '', commitDue: '', commitDone: false, sample: true, createdAt: now + day * 864e5 + seq++, ...extra});
+  const S = (t, p, day, from, to) => L(t, p, day, 'status', '', 0, {from, to, fromName: st(from).name, toName: st(to).name});
+  const p1 = P('Sample: CRM Upgrade', 'PRJ-CRM', 'Sales Dept', -40, 50, 'Upgrade the old CRM to the new version. Scope: customers, quotations, reports.');
+  const p2 = P('Sample: Office Move', 'PRJ-OFF', 'Admin', -15, 45, 'Move the Singapore office to the new address, including network and meeting room equipment.');
+  const m1 = M(p1, 'Requirements sign-off', -25, 'done', -22), m2 = M(p1, 'Build complete', 8, 'doing'), m3 = M(p1, 'UAT complete', 30, 'planned'); M(p1, 'Go-live', 48, 'planned');
+  const m5 = M(p2, 'New site confirmed', -3, 'doing'); M(p2, 'Fit-out complete', 30, 'planned');
+  const t1 = T(p1, m1, 'Send requirements document for business sign-off', me, -20, 'done', 'high', 30);
+  const t2 = T(p1, m2, 'Follow up quotation module progress', 'Alice', 2, 'doing', 'high', 9);
+  const t3 = T(p1, m2, 'Confirm data migration approach', 'Ben', -2, 'waiting', 'high', 7);
+  T(p1, m3, 'Prepare UAT test cases', 'Chen Wei', 12, 'todo', 'medium', 3);
+  const t5 = T(p1, null, 'Update weekly status report', me, 0, 'todo', 'medium', 2);
+  const t6 = T(p2, m5, 'Confirm lease terms with landlord', me, 1, 'doing', 'high', 10);
+  const t7 = T(p2, null, 'Collect seating needs from each team', 'Priya', 5, 'todo', 'low', 4);
+  T(p2, null, 'Compare IT cabling quotes', 'Ben', 9, 'todo', 'medium', 1);
+  S(t1, p1, -24, 'todo', 'doing'); L(t1, p1, -24, 'work', 'Drafted requirements document.', 3);
+  S(t1, p1, -21, 'doing', 'done'); L(t1, p1, -21, 'decision', 'Business agreed: reports module moves to phase 2.', 0);
+  S(t2, p1, -8, 'todo', 'doing');
+  L(t2, p1, -8, 'work', 'Kick-off with Alice. Agreed on build plan for the quotation module.', 1);
+  L(t2, p1, -4, 'work', 'Checked progress: about 40% done.', 0.5);
+  L(t2, p1, -4, 'risk', 'Pricing rules are more complex than planned. May need 3 more days.', 0);
+  L(t2, p1, -1, 'work', 'Meeting with Alice on quotation module. About 60% done.', 1);
+  L(t2, p1, 0, 'work', 'Reviewed test results for the quotation module. Found 3 issues.', 1.5);
+  L(t2, p1, 0, 'commit', 'Send the issue list to Alice', 0, {who: me, commitDue: addDays(td, 2)});
+  S(t3, p1, -5, 'todo', 'doing'); S(t3, p1, -3, 'doing', 'waiting');
+  L(t3, p1, -3, 'work', 'Discussed options with Ben and the vendor.', 1);
+  L(t3, p1, -1, 'commit', 'Provide first draft of the migration approach', 0, {who: 'Ben', commitDue: addDays(td, 1)});
+  L(t3, p1, -1, 'risk', 'Old system data quality is poor. Migration may be delayed.', 0.5);
+  S(t6, p2, -6, 'todo', 'doing');
+  L(t6, p2, -1, 'work', 'Reviewed the lease. Listed 5 questions.', 2);
+  L(t6, p2, -1, 'commit', 'Reply with comments on lease changes by Friday', 0, {who: 'Landlord', commitDue: addDays(td, 3)});
+  L(t6, p2, 0, 'work', 'Call with landlord about lease questions.', 1);
+  L(null, p1, -1, 'work', 'Weekly project meeting', 1.5);
+  L(t7, p2, -1, 'work', 'Emailed all teams to collect seating needs.', 0.5);
+  L(t5, p1, 0, 'work', 'Collected this week\'s progress. Started the report.', 1);
+}
+
+render();
+initFile();
+</script>
+</body>
+</html>

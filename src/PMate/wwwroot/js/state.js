@@ -1,0 +1,25 @@
+// UI state that is not saved on the server.
+import { today, weekStart } from './util.js';
+
+export const ui = {
+  view: 'today',
+  board: {project: '', owner: '', q: '', due: '', mode: 'kanban', showDone: false},
+  projectId: null,
+  showClosed: false,
+  tsWeek: weekStart(today()),
+  tsDay: today(),
+  taskId: null,       // task open in the drawer
+  newTask: null,      // preset for the "new task" drawer
+  tlFilter: 'all',    // timeline filter in the drawer
+  system: null,       // /api/system/info
+  notes: {selectedId: null, q: '', project: '', hits: null},
+  raid: {project: '', type: '', status: 'active'},
+  trash: null,        // /api/trash, loaded when Settings opens
+};
+
+// Render functions, set by main.js. Other modules call these to refresh the screen.
+export const app = {
+  render: () => {},
+  renderDrawer: () => {},
+  refreshTimeline: () => {},
+};

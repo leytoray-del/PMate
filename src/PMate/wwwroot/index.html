@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PMate</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">PMate</div>
+    <button class="nav" data-act="nav" data-view="today">Today<span class="n" id="n-today" hidden></span></button>
+    <button class="nav" data-act="nav" data-view="board">Task Board</button>
+    <button class="nav" data-act="nav" data-view="projects">Projects</button>
+    <button class="nav" data-act="nav" data-view="notes">Notes</button>
+    <button class="nav" data-act="nav" data-view="raid">RAID Log</button>
+    <button class="nav" data-act="nav" data-view="timesheet">Timesheet</button>
+    <button class="nav" data-act="nav" data-view="settings">Settings &amp; Data</button>
+    <div class="foot" id="side-foot"></div>
+  </aside>
+  <main class="main" id="main"><div class="empty">Loading…</div></main>
+</div>
+<aside class="drawer" id="drawer" hidden aria-label="Task details"></aside>
+<div class="modal" id="modal" hidden></div>
+<div class="overlay" id="overlay" hidden><div>Updating… This page reloads when the new version is ready.</div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="import-input" accept=".json,application/json" hidden>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

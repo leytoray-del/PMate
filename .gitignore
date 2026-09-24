@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+*.user
+.vs/
+.vscode/
+.idea/
+TestResults/
+
+# Local data used while developing (never commit data)
+.devdata/
+*.db
+*.db-shm
+*.db-wal
