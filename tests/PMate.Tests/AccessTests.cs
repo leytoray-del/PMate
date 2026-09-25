@@ -204,6 +204,28 @@ public sealed class AccessTests : IAsyncLifetime
         Assert.Equal("Ann Lee", (await _setup.Tasks.SingleAsync()).Owner);
         await Assert.ThrowsAsync<AppException>(() => users.UpdateProfileAsync(_ben.Id!, "Ann Lee"));
     }
+
+    [Fact]
+    public async Task Old_records_go_back_to_the_user_named_as_creator()
+    {
+        // Older versions saved only the creator's display name.
+        _setup.Updates.AddRange(
+            new TaskUpdate { Date = new DateOnly(2026, 9, 21), Text = "Ann's work", Hours = 3, CreatedBy = "Ann" },
+            new TaskUpdate { Date = new DateOnly(2026, 9, 21), Text = "Before sign-in", Hours = 1 },
+            new TaskUpdate { Date = new DateOnly(2026, 9, 21), Text = "Old user", Hours = 2, CreatedBy = "Someone who left" });
+        _setup.Notes.Add(new Note { Title = "Ann's private note", CreatedBy = "Ann" });
+        await _setup.SaveChangesAsync();
+
+        await Ownership.AssignUnownedAsync(_setup);
+
+        _setup.ChangeTracker.Clear();
+        var owners = await _setup.Updates.IgnoreQueryFilters().ToDictionaryAsync(u => u.Text, u => u.CreatedById);
+        Assert.Equal(_ann.Id, owners["Ann's work"]);
+        Assert.Equal(_admin.Id, owners["Before sign-in"]);
+        Assert.Equal(_admin.Id, owners["Old user"]);
+        await using var ann = As(_ann);
+        Assert.Equal(1, await ann.Notes.CountAsync());
+    }
 }
 
 /// <summary>Project teams over HTTP.</summary>
