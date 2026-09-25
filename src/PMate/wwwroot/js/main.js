@@ -3,7 +3,7 @@ import { $, esc, today, addDays, weekStart, plural, sleep } from './util.js';
 import { api } from './api.js';
 import * as store from './store.js';
 import { db, task, isDone, isOpen, firstOpen, firstDone } from './store.js';
-import { ui, app } from './state.js';
+import { ui, app, isAdmin } from './state.js';
 import { views, boardBody, daySummary, exportCsv } from './views.js';
 import { openTask, newTask, closeDrawer, renderDrawer, refreshTimeline, autosaveTask, syncDrawerStatus } from './drawer.js';
 import { quickLogModal, editLogModal, commitModal, projectModal, milestoneModal, statusEditor } from './modals.js';
@@ -11,9 +11,22 @@ import { toast, hideToast, closeModal, msOptions, taskOptions } from './componen
 import { notesView, noteListHtml, noteEdited, flushNote, openNote, createNote, noteSearchChanged, editorSelection } from './notes.js';
 import { raidView, raidModal, raidTypeChanged } from './raid.js';
 import { buildSample } from './sample.js';
+import { usersView, userModal, resetPasswordModal, accountModal, generatePassword } from './users.js';
 
 views.notes = notesView;
 views.raid = raidView;
+views.users = usersView;
+
+async function loadUsers() {
+  try { ui.users = await api.get('/api/users'); } catch (err) { ui.users = []; toast(err.message, {error: true}); }
+}
+
+/** A dialog the user must finish, for example choosing a new password. Esc and clicking outside do not close it. */
+function openForcedAccount() {
+  ui.forcedModal = true;
+  accountModal(true);
+}
+function closeAnyModal() { if (!ui.forcedModal) closeModal(); }
 
 /** Shows "… deleted" with an Undo button. */
 const deleted = r => toast(`${r.label} deleted`, {undoId: r.undoId});
@@ -24,20 +37,29 @@ async function loadTrash() {
 
 /* ---------- render ---------- */
 function render() {
+  if (ui.view === 'users' && !isAdmin()) ui.view = 'today';
   document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.view === (ui.view === 'project' ? 'projects' : ui.view)));
+  $('#nav-users').hidden = !isAdmin();
   $('#main').innerHTML = updateBanner() + views[ui.view]();
   const td = today(), n = db.tasks.filter(t => isOpen(t) && t.due && t.due <= td).length;
   const badge = $('#n-today');
   badge.hidden = !n;
   badge.textContent = n;
-  const sys = ui.system;
-  $('#side-foot').innerHTML = sys ? `v${esc(sys.version)}${sys.commit ? ` · ${esc(sys.commit)}` : ''}<br>Saved in local database` : '';
+  renderSideFoot();
 }
 Object.assign(app, {render, renderDrawer, refreshTimeline});
 
+function renderSideFoot() {
+  const sys = ui.system, me = ui.me;
+  $('#side-foot').innerHTML = (me ? `<div class="me">${esc(me.displayName)}</div>
+      <div class="small muted">${me.role === 'admin' ? 'Admin' : 'Member'}</div>
+      <div class="me-actions"><button class="btn sm" data-act="account">My account</button><button class="btn sm" data-act="logout">Sign out</button></div>` : '') +
+    (sys ? `<div style="margin-top:8px">v${esc(sys.version)}${sys.commit ? ` · ${esc(sys.commit)}` : ''}</div>` : '');
+}
+
 function updateBanner() {
   const s = ui.system;
-  if (!s?.behind) return '';
+  if (!s?.behind || !isAdmin()) return '';
   return `<div class="banner info">A new version is available (${plural(s.behind, 'change')}).<span class="sp"></span>
     <button class="btn sm primary" data-act="do-update">Update and restart</button></div>`;
 }
@@ -94,8 +116,46 @@ const forms = {
     closeModal();
     render();
   },
+  /* users and account */
+  async 'new-user'(f, d) {
+    await api.post('/api/users', {userName: d.get('userName'), displayName: d.get('displayName'), role: d.get('role'), password: d.get('password')});
+    await loadUsers();
+    closeModal();
+    render();
+    toast(`User added. Give them the user name "${d.get('userName')}" and the temporary password.`);
+  },
+  async 'edit-user'(f, d) {
+    await api.put(`/api/users/${f.dataset.id}`, {displayName: d.get('displayName'), role: d.get('role'), isActive: d.get('isActive') === 'on'});
+    await loadUsers();
+    closeModal();
+    render();
+    toast('User saved');
+  },
+  async 'reset-password'(f, d) {
+    await api.post(`/api/users/${f.dataset.id}/reset-password`, {newPassword: d.get('password')});
+    await loadUsers();
+    closeModal();
+    render();
+    toast('Password reset. Give the user the temporary password.');
+  },
+  async profile(f, d) {
+    ui.me = await api.put('/api/auth/profile', {displayName: d.get('displayName')});
+    closeModal();
+    render();
+    toast('Name saved');
+  },
+  async 'change-password'(f, d) {
+    if (d.get('newPassword') !== d.get('confirm')) throw new Error('The two new passwords do not match.');
+    ui.me = await api.post('/api/auth/change-password', {currentPassword: d.get('currentPassword'), newPassword: d.get('newPassword')});
+    const wasForced = ui.forcedModal;
+    ui.forcedModal = false;
+    closeModal();
+    toast('Password changed');
+    if (wasForced) await loadApp(); else render();
+  },
+
   async settings(f, d) {
-    await store.saveSettings({me: d.get('me'), hoursPerDay: +d.get('hoursPerDay') || 8, backupDir: d.get('backupDir'),
+    await store.saveSettings({hoursPerDay: +d.get('hoursPerDay') || 8, backupDir: d.get('backupDir'),
       remindersEnabled: d.get('remindersEnabled') === 'on', morningReminder: d.get('morningReminder'), eveningReminder: d.get('eveningReminder')});
     await loadSystem();
     render();
@@ -140,10 +200,22 @@ const actions = {
     ui.view = a.dataset.view;
     closeModal();
     if (ui.view === 'settings') ui.trash = null;
+    if (ui.view === 'users') ui.users = null;
     render();
     window.scrollTo(0, 0);
     if (ui.view === 'settings') { await Promise.all([loadSystem(), loadTrash()]); render(); }
+    if (ui.view === 'users') { await loadUsers(); render(); }
   },
+  account: () => accountModal(),
+  logout: async () => {
+    await flushNote();
+    await api.post('/api/auth/logout');
+    location.href = '/login.html';
+  },
+  'new-user': () => userModal(),
+  'edit-user': a => userModal(a.dataset.id),
+  'reset-password': a => resetPasswordModal(a.dataset.id),
+  'gen-password': a => { a.closest('form').password.value = generatePassword(); },
   undo: async a => {
     hideToast();
     await store.restore(a.dataset.id);
@@ -304,7 +376,7 @@ const actions = {
     toast(r.error ? 'Backup finished with a problem: ' + r.error : `Backup saved (${plural(r.files.length, 'file')})`, !!r.error);
   },
   'load-sample': async () => {
-    await store.importData(buildSample(db.settings.me || 'Me'), 'merge');
+    await store.importData(buildSample(ui.me.displayName), 'merge');
     ui.view = 'today';
     render();
     toast('Sample data loaded. You can remove it in Settings.');
@@ -350,7 +422,7 @@ const actions = {
 const run = async fn => { try { await fn(); } catch (err) { toast(err.message, true); } };
 
 document.addEventListener('click', e => {
-  if (e.target.id === 'modal') return closeModal();
+  if (e.target.id === 'modal') return closeAnyModal();
   const a = e.target.closest('[data-act]');
   if (!a || !actions[a.dataset.act]) return;
   if (a.tagName === 'A') e.preventDefault();
@@ -432,7 +504,7 @@ document.addEventListener('drop', e => {
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase(), typing = ['input', 'textarea', 'select'].includes(tag);
   if (e.key === 'Escape') {
-    if (!$('#modal').hidden) return closeModal();
+    if (!$('#modal').hidden) return closeAnyModal();
     if (typing && e.target.closest('#note-editor')) return e.target.blur();
     if (typing && e.target.closest('#drawer')) return e.target.blur();
     if (!$('#drawer').hidden) return closeDrawer();
@@ -445,11 +517,25 @@ document.addEventListener('keydown', e => {
 /* ---------- start ---------- */
 let lastDay = today();
 setInterval(() => { if (today() !== lastDay) { lastDay = today(); render(); refreshTimeline(); } }, 60_000);
-setInterval(() => loadSystem().then(() => { if (!document.activeElement || document.activeElement === document.body) render(); }), 30 * 60_000);
+setInterval(() => loadSystem().then(() => {
+  if (!ui.forcedModal && (!document.activeElement || document.activeElement === document.body)) render();
+}), 30 * 60_000);
 // Save a note that is still waiting for its autosave when the window closes.
 window.addEventListener('pagehide', () => { flushNote(); });
 
-run(async () => {
+async function loadApp() {
   await Promise.all([store.load(), loadSystem()]);
   render();
+}
+
+run(async () => {
+  // Not signed in: api.js sends the browser to the login page.
+  ui.me = await api.get('/api/auth/me');
+  if (ui.me.mustChangePassword) {
+    $('#main').innerHTML = '';
+    renderSideFoot();
+    openForcedAccount();
+    return;
+  }
+  await loadApp();
 });

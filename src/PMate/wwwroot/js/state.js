@@ -15,7 +15,11 @@ export const ui = {
   notes: {selectedId: null, q: '', project: '', hits: null},
   raid: {project: '', type: '', status: 'active'},
   trash: null,        // /api/trash, loaded when Settings opens
+  me: null,           // signed-in user: {id, userName, displayName, role, mustChangePassword}
+  users: null,        // /api/users, loaded when the Users page opens (admins only)
 };
+
+export const isAdmin = () => ui.me?.role === 'admin';
 
 // Render functions, set by main.js. Other modules call these to refresh the screen.
 export const app = {

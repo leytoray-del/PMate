@@ -26,8 +26,8 @@ public sealed class ServiceTests : IAsyncLifetime
         await _conn.DisposeAsync();
     }
 
-    private TaskService Tasks => new(_db, new LocalUser(_db), new TrashService(_db));
-    private ProjectService Projects => new(_db, new LocalUser(_db), new TrashService(_db));
+    private TaskService Tasks => new(_db, new TestUser(), new TrashService(_db));
+    private ProjectService Projects => new(_db, new TestUser(), new TrashService(_db));
     private static TaskInput Input(string title, string? status = null, string? projectId = null) =>
         new(title, projectId, null, "Me", null, status, "high", null);
 

@@ -1,7 +1,7 @@
 // The main pages. Each view returns an HTML string for <main>.
 import { esc, today, parse, addDays, dayDiff, fmtMD, fmtDate, fmtFull, fmtH, round2, plural, by, download, WD, LOGTYPE, LOGCOLOR, PSTATUS, MSTATUS } from './util.js';
 import { db, proj, task, st, statuses, isDone, isOpen, isActivity, recentDone, firstOpen, projLabel, owners, openCommitCount } from './store.js';
-import { ui } from './state.js';
+import { ui, isAdmin } from './state.js';
 import { statusChip, dueInfo, taskMeta, taskList, sortTasks, commitList, logList, projOptions, opts, ownerList } from './components.js';
 import { raidTable, raidAttention, sortRaid } from './raid.js';
 import { noteTitle } from './notes.js';
@@ -31,7 +31,7 @@ views.today = () => {
   <form class="card bar" data-form="quick-task">
     <input name="title" placeholder="Quick add a task, press Enter" style="flex:1;min-width:220px" autocomplete="off">
     <select name="projectId">${projOptions(ui.board.project === '_none' ? '' : ui.board.project)}</select>
-    <input name="owner" placeholder="Owner" list="owners" value="${esc(db.settings.me)}" style="width:120px">
+    <input name="owner" placeholder="Owner" list="owners" value="${esc(ui.me?.displayName)}" style="width:120px">
     <input type="date" name="due" title="Due date">
     <button class="btn primary">Add</button>${ownerList()}
   </form>
@@ -61,7 +61,7 @@ function welcome() {
   <div class="card welcome">
     <p>All data is saved in a database on this computer. Nothing is sent to any server.</p>
     <ol>
-      <li>In <b>Settings &amp; Data</b>, enter your name. You can also set a second backup folder, for example in OneDrive.</li>
+      ${isAdmin() ? '<li>In <b>Users</b>, add your team members. In <b>Settings &amp; Data</b>, you can set a second backup folder, for example in OneDrive.</li>' : ''}
       <li>In <b>Projects</b>, create a project. Use the same project code as your timesheet.</li>
       <li>Add tasks to the project. Each time you work on a task, add a <b>Work log</b> with hours.</li>
       <li>Open <b>Timesheet</b> to see daily and weekly hours. Copy the daily summary into your timesheet.</li>
@@ -69,7 +69,7 @@ function welcome() {
     <p>Used the single-file version before? Export a backup there, then use <b>Settings &amp; Data → Restore from backup</b> here.</p>
     <div class="actions" style="justify-content:flex-start">
       <button class="btn primary" data-act="new-project">Create your first project</button>
-      <button class="btn" data-act="load-sample">Load sample data</button>
+      ${isAdmin() ? '<button class="btn" data-act="load-sample">Load sample data</button>' : ''}
     </div>
     <p class="small muted">Shortcuts: <span class="kbd">N</span> new task, <span class="kbd">L</span> log time, <span class="kbd">Esc</span> close panel.</p>
   </div>`;
@@ -80,7 +80,7 @@ views.board = () => {
   const b = ui.board;
   return `<div class="head"><h1>Task Board</h1>
     <div class="seg"><button class="${b.mode === 'kanban' ? 'on' : ''}" data-act="board-mode" data-mode="kanban">Board</button><button class="${b.mode === 'list' ? 'on' : ''}" data-act="board-mode" data-mode="list">List</button></div>
-    <button class="btn" data-act="edit-statuses">Customize columns</button>
+    ${isAdmin() ? '<button class="btn" data-act="edit-statuses">Customize columns</button>' : ''}
     <button class="btn primary" data-act="new-task">+ New task</button></div>
   <div class="bar">
     <input data-filter="q" placeholder="Search tasks and records" value="${esc(b.q)}" style="width:220px">
@@ -301,14 +301,19 @@ export function exportCsv() {
 
 /* ---------- Settings ---------- */
 views.settings = () => {
-  const s = db.settings, sys = ui.system || {};
+  const s = db.settings, sys = ui.system || {}, admin = isAdmin();
   const hasSample = [...db.projects, ...db.tasks].some(x => x.isSample);
   const when = v => v ? new Date(v).toLocaleString() : 'never';
   return `<div class="head"><h1>Settings &amp; Data</h1></div>
-  <form class="card" data-form="settings"><h2>General</h2>
+  <div class="card"><h2>My account</h2>
+    <div class="kv"><span>Name</span><span>${esc(ui.me.displayName)}</span><span>User name</span><code>${esc(ui.me.userName)}</code>
+      <span>Role</span><span>${admin ? 'Admin' : 'Member'}</span></div>
+    <div class="actions" style="justify-content:flex-start"><button class="btn" data-act="account">Change name or password</button></div>
+  </div>
+  ${admin ? `<form class="card" data-form="settings"><h2>General</h2>
     <div class="form">
-      <label>My name (default owner for new tasks)<input name="me" value="${esc(s.me)}"></label>
       <label>Standard hours per day<input type="number" name="hoursPerDay" step="0.5" min="0" max="24" value="${esc(s.hoursPerDay)}"></label>
+      <span></span>
       <label class="full">Extra backup folder (optional, for example a OneDrive folder)
         <input name="backupDir" value="${esc(s.backupDir)}" placeholder="C:\\Users\\you\\OneDrive - Company\\PMate Backup"></label>
     </div>
@@ -321,7 +326,7 @@ views.settings = () => {
       <label>Evening: if today's hours are below ${esc(s.hoursPerDay)}h<input type="time" name="eveningReminder" value="${esc(s.eveningReminder || '17:30')}"></label>
     </div>
     <div class="actions"><button type="button" class="btn l" data-act="test-reminder">Send a test reminder</button><button class="btn primary">Save</button></div>
-  </form>
+  </form>` : ''}
   <div class="card"><h2>Recently deleted <span class="muted small">Kept for 30 days</span></h2>
     ${!ui.trash ? '<div class="empty">Loading…</div>' : !ui.trash.length ? '<div class="empty">Nothing was deleted in the last 30 days.</div>'
       : `<table><tbody>${ui.trash.map(b => `<tr><td>${esc(b.label)}${b.itemCount > 1 ? ` <span class="muted small">(${b.itemCount} rows)</span>` : ''}</td>
@@ -330,37 +335,37 @@ views.settings = () => {
   </div>
   <div class="card"><h2>Board columns</h2>
     <p style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${statuses().map(x => `<span class="chip cc c-${x.color}">${esc(x.name)}${x.isDone ? ' ✓' : ''}</span>`).join('')}</p>
-    <button class="btn" data-act="edit-statuses">Customize columns</button>
+    ${admin ? '<button class="btn" data-act="edit-statuses">Customize columns</button>' : '<p class="small muted">Only an admin can change the columns.</p>'}
   </div>
   <div class="card"><h2>Data and backups</h2>
-    <div class="kv">
+    ${admin ? `<div class="kv">
       <span>Database</span><code>${esc(sys.databaseFile || '')}</code>
       <span>Daily backups</span><code>${esc(sys.backupDir || '')}${sys.extraBackupDir ? '<br>' + esc(sys.extraBackupDir) : ''}</code>
       <span>Last backup</span><span>${when(sys.lastBackup)}${sys.backupError ? ` <span class="chip danger">${esc(sys.backupError)}</span>` : ''}</span>
     </div>
     <p class="small muted">A backup is made automatically once a day. The last 14 are kept.
-      Keep the database itself on the local disk. Only put backups in OneDrive.</p>
+      Keep the database itself on the local disk. Only put backups in OneDrive.</p>` : '<p class="small muted">Backups are made automatically every day.</p>'}
     <div class="actions" style="justify-content:flex-start">
-      <button class="btn" data-act="backup-now">Back up now</button>
+      ${admin ? '<button class="btn" data-act="backup-now">Back up now</button>' : ''}
       <a class="btn" href="/api/export" download>Export backup (JSON)</a>
-      <button class="btn" data-act="import-json">Restore from backup</button>
+      ${admin ? `<button class="btn" data-act="import-json">Restore from backup</button>
       ${hasSample ? '<button class="btn" data-act="remove-sample">Remove sample data</button>' : '<button class="btn" data-act="load-sample">Load sample data</button>'}
-      <button class="btn danger" data-act="clear-all">Delete all data</button>
+      <button class="btn danger" data-act="clear-all">Delete all data</button>` : ''}
     </div>
-    <p class="small muted">"Restore from backup" also accepts backups from the old single-file version.</p>
+    ${admin ? '<p class="small muted">"Restore from backup" also accepts backups from the old single-file version.</p>' : ''}
   </div>
   <div class="card"><h2>Version and updates</h2>
     <div class="kv">
       <span>Version</span><span>${esc(sys.version || '?')}${sys.commit ? ` <code>${esc(sys.commit)}</code>` : ''}</span>
-      <span>Updates</span><span>${!sys.updatesEnabled ? 'Off (not running from a git clone)'
+      ${admin ? `<span>Updates</span><span>${!sys.updatesEnabled ? 'Off (not running from a git clone)'
         : sys.updateError ? `<span class="chip danger">${esc(sys.updateError)}</span>`
         : sys.behind ? `<span class="chip warn">${plural(sys.behind, 'new change')} available</span>` : 'Up to date'}
-        ${sys.lastChecked ? `<span class="muted small">· checked ${when(sys.lastChecked)}</span>` : ''}</span>
+        ${sys.lastChecked ? `<span class="muted small">· checked ${when(sys.lastChecked)}</span>` : ''}</span>` : ''}
     </div>
-    <div class="actions" style="justify-content:flex-start">
+    ${admin ? `<div class="actions" style="justify-content:flex-start">
       <button class="btn" data-act="check-updates" ${sys.updatesEnabled ? '' : 'disabled'}>Check for updates</button>
       ${sys.behind ? '<button class="btn primary" data-act="do-update">Update and restart</button>' : ''}
-    </div>
+    </div>` : ''}
     <p class="small muted">Shortcuts: <span class="kbd">N</span> new task, <span class="kbd">L</span> log time, <span class="kbd">Esc</span> close panel.</p>
   </div>`;
 };

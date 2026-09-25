@@ -12,7 +12,7 @@ public static class SettingKeys
 }
 
 public record AppSettings(
-    string Me,
+    string? Me,
     double HoursPerDay,
     string? BackupDir,
     bool RemindersEnabled = true,
@@ -43,7 +43,8 @@ public class SettingsService(AppDbContext db)
         var evening = ValidTime(input.EveningReminder) ?? throw new AppException("Evening reminder time must look like 17:30.");
         if (string.CompareOrdinal(morning, evening) >= 0) throw new AppException("The morning reminder must be earlier than the evening reminder.");
 
-        await SetAsync(SettingKeys.Me, input.Me?.Trim() ?? "");
+        // "Me" is from before sign-in existed. Now the signed-in user's display name is used. Kept only for old backups.
+        if (input.Me is not null) await SetAsync(SettingKeys.Me, input.Me.Trim());
         await SetAsync(SettingKeys.HoursPerDay, input.HoursPerDay.ToString(CultureInfo.InvariantCulture));
         await SetAsync(SettingKeys.BackupDir, backupDir);
         await SetAsync(SettingKeys.RemindersEnabled, input.RemindersEnabled ? "true" : "false");

@@ -24,6 +24,7 @@ SQLite   %LOCALAPPDATA%\PMate\pmate.db
 | 目录 | 内容 |
 |---|---|
 | `src/PMate/Domain` | 数据实体 |
+| `src/PMate/Auth` | 用户、登录、密码哈希、权限 |
 | `src/PMate/Services` | 业务逻辑。所有规则都在服务端，以后多人使用时不用搬 |
 | `src/PMate/Infrastructure` | 数据路径、自动备份、更新检查、提醒 |
 | `src/PMate/Desktop` | Windows 托盘图标和通知。只在 Windows 上编译 |
@@ -76,6 +77,16 @@ dotnet ef migrations add 名称 --project src/PMate --output-dir Data/Migrations
 
 如果 `git pull` 失败（例如没有网络），会继续用当前版本启动。日志在 `%LOCALAPPDATA%\PMate\logs`。
 
+## 登录和用户
+
+- **第一次启动**：登录页会要求创建第一个账号。这个账号是管理员（Admin）。
+- **角色**：Admin 管理用户、设置、看板列、备份和更新。Member 使用项目、任务、笔记和 RAID 登记表。
+- **添加用户**：Admin 在 **Users** 页面添加用户，并给一个临时密码。用户第一次登录时必须改成自己的密码。
+- **Remember me**：勾选后 30 天内不用重新登录。不勾选时，关闭浏览器就要重新登录。浏览器也可以用自己的密码管理器保存密码。
+- **密码安全**：只保存加盐的 PBKDF2 哈希值，从不保存明文密码。连续输错 5 次，账号锁定 5 分钟。
+- **退出其他登录**：修改密码、停用账号或修改角色后，这个用户在其他电脑上的登录会立即失效。
+- **停用而不是删除**：用户只能停用，不能删除，这样记录上的“创建人”仍然正确。系统至少要有一个启用的 Admin。
+
 ## 功能说明
 
 **提醒通知**：程序运行时，时钟旁边有一个 PMate 图标。工作日会发两次 Windows 通知：
@@ -108,8 +119,8 @@ dotnet ef migrations add 名称 --project src/PMate --output-dir Data/Migrations
 | 需要做的事 | 在哪里改 |
 |---|---|
 | 换成云数据库（PostgreSQL 或 Azure SQL） | `Program.cs` 里换 EF Core 提供程序，重新生成迁移 |
-| 登录（公司用 Microsoft 365，建议用 Entra ID 单点登录） | 加认证中间件，把 `LocalUser` 换成读取登录用户的实现 |
-| 任务分配给团队成员 | `TaskItem.Owner` 现在是名字，增加用户表和 `OwnerUserId` |
+| 公司账号登录（Microsoft 365，建议用 Entra ID 单点登录） | 现在已有用户和登录。在 `Auth/AuthSetup.cs` 里加一个 OpenID Connect 登录方式，按邮箱对应到 `Users` 表 |
+| 任务分配给团队成员 | `TaskItem.Owner` 现在是名字，改成关联 `Users` 表的 `OwnerUserId` |
 | 权限（谁能看哪个项目） | 增加项目成员表，在服务层过滤 |
 | 部署 | Azure App Service 或容器，前端代码不用改 |
 

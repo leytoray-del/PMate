@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · PMate</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="login-page">
+<main class="lbox card">
+  <div class="lbrand"><img src="favicon.svg" alt="" width="36" height="36"><span>PMate</span></div>
+
+  <!-- Normal sign-in. The autocomplete values let the browser offer to save and fill the password. -->
+  <form id="login-form" hidden>
+    <h1>Sign in</h1>
+    <label>User name<input name="userName" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+    <label>Password
+      <span class="pw"><input name="password" type="password" autocomplete="current-password" required>
+      <button type="button" class="btn link" data-show-password>Show</button></span>
+    </label>
+    <label class="check"><input type="checkbox" name="rememberMe" checked> Remember me on this computer</label>
+    <div class="lerror" role="alert" hidden></div>
+    <button class="btn primary lsubmit">Sign in</button>
+    <p class="small muted">"Remember me" keeps you signed in for 30 days. Your browser can also save your password for you.
+      PMate never stores your password as plain text.</p>
+  </form>
+
+  <!-- First start only: create the first account, which becomes the admin. -->
+  <form id="setup-form" hidden>
+    <h1>Welcome to PMate</h1>
+    <p class="small muted">Create the first account. It becomes the admin, who can add other users later.</p>
+    <label>User name<input name="userName" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="e.g. lee.tan"></label>
+    <label>Display name<input name="displayName" autocomplete="name" required placeholder="e.g. Lee Tan"></label>
+    <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></label>
+    <label>Repeat password<input name="confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+    <div class="lerror" role="alert" hidden></div>
+    <button class="btn primary lsubmit">Create admin account</button>
+  </form>
+</main>
+<script type="module" src="js/login.js"></script>
+</body>
+</html>

@@ -40,11 +40,17 @@ public sealed class AppPaths
     /// The app was called "PM Assistant" before it was renamed to PMate.
     /// This moves its data folder, database and backups to the new names, once.
     /// </summary>
-    private static void MoveDataFromOldName(string? oldDataDir, string dataDir)
+    public static void MoveDataFromOldName(string? oldDataDir, string dataDir)
     {
         try
         {
-            if (oldDataDir is not null && Directory.Exists(oldDataDir) && !Directory.Exists(dataDir)) Directory.Move(oldDataDir, dataDir);
+            // The launcher may already have created the new folder (for its logs), so check for the database, not the folder.
+            if (oldDataDir is not null && Directory.Exists(oldDataDir) && !File.Exists(Path.Combine(dataDir, "pmate.db")))
+            {
+                Directory.CreateDirectory(dataDir);
+                MoveContents(oldDataDir, dataDir);
+                if (!Directory.EnumerateFileSystemEntries(oldDataDir).Any()) Directory.Delete(oldDataDir);
+            }
             if (!Directory.Exists(dataDir)) return;
 
             if (File.Exists(Path.Combine(dataDir, "pm-assistant.db")) && !File.Exists(Path.Combine(dataDir, "pmate.db")))
@@ -69,6 +75,23 @@ public sealed class AppPaths
         catch (IOException ex)
         {
             throw new InvalidOperationException($"Could not move the old PM Assistant data to {dataDir}. Close any running copy of the old app and start again.", ex);
+        }
+    }
+
+    /// <summary>Moves files and folders that do not exist at the target yet. Files that exist at both places stay where they are.</summary>
+    private static void MoveContents(string from, string to)
+    {
+        foreach (var f in Directory.GetFiles(from))
+        {
+            var target = Path.Combine(to, Path.GetFileName(f));
+            if (!File.Exists(target)) File.Move(f, target);
+        }
+        foreach (var d in Directory.GetDirectories(from))
+        {
+            var target = Path.Combine(to, Path.GetFileName(d));
+            if (!Directory.Exists(target)) { Directory.Move(d, target); continue; }
+            MoveContents(d, target);
+            if (!Directory.EnumerateFileSystemEntries(d).Any()) Directory.Delete(d);
         }
     }
 

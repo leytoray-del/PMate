@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using PMate.Auth;
 using PMate.Infrastructure;
 using PMate.Services;
 
@@ -17,7 +18,7 @@ public static class Endpoints
     {
         var api = app.MapGroup("/api");
 
-        api.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+        api.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
         api.MapGet("/snapshot", (DataService d) => d.GetSnapshotAsync());
 
         // Tasks and their timeline records
@@ -52,9 +53,9 @@ public static class Endpoints
         api.MapPost("/trash/{id}/restore", async (string id, TrashService s) => { await s.RestoreAsync(id); return Results.NoContent(); });
 
         // Board columns and settings
-        api.MapPut("/statuses", (List<StatusInput> input, StatusService s) => s.ReplaceAsync(input));
+        api.MapPut("/statuses", (List<StatusInput> input, StatusService s) => s.ReplaceAsync(input)).RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapGet("/settings", (SettingsService s) => s.GetAsync());
-        api.MapPut("/settings", (AppSettings input, SettingsService s) => s.SaveAsync(input));
+        api.MapPut("/settings", (AppSettings input, SettingsService s) => s.SaveAsync(input)).RequireAuthorization(AuthSetup.AdminPolicy);
 
         // Backup, restore and bulk operations
         api.MapGet("/export", async (DataService d) =>
@@ -67,14 +68,14 @@ public static class Endpoints
             "replace" => d.ImportAsync(body, replace: true),
             "merge" => d.ImportAsync(body, replace: false),
             _ => throw new AppException("mode must be 'replace' or 'merge'."),
-        });
-        api.MapDelete("/sample", async (DataService d) => { await d.RemoveSampleAsync(); return Results.NoContent(); });
+        }).RequireAuthorization(AuthSetup.AdminPolicy);
+        api.MapDelete("/sample", async (DataService d) => { await d.RemoveSampleAsync(); return Results.NoContent(); }).RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapDelete("/data", async (string confirm, DataService d) =>
         {
             if (confirm != "DELETE") throw new AppException("Confirmation text does not match.");
             await d.ClearAsync();
             return Results.NoContent();
-        });
+        }).RequireAuthorization(AuthSetup.AdminPolicy);
 
         // App info, updates and backups
         api.MapGet("/system/info", SystemInfo);
@@ -82,7 +83,7 @@ public static class Endpoints
         {
             await u.CheckAsync();
             return await SystemInfo(u, p, b, s, n);
-        });
+        }).RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapPost("/system/test-reminder", async (INotifier notifier, ReminderBuilder builder) =>
         {
             if (!notifier.IsAvailable) throw new AppException("Desktop notifications are not available. The tray icon is off or not supported here.");
@@ -90,13 +91,13 @@ public static class Endpoints
                 ?? new ReminderMessage("PMate", "Reminders are working. Nothing is due today.");
             notifier.Notify(m.Title, m.Text);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapPost("/system/backup", async (BackupService b) =>
         {
             var files = await b.BackupNowAsync();
             if (files.Count == 0) throw new AppException("Backup failed: " + b.LastError, 500);
             return new { files, error = b.LastError };
-        });
+        }).RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapPost("/system/update", (AppPaths paths, UpdateChecker u, IHostApplicationLifetime life) =>
         {
             if (!u.Enabled) throw new AppException("Updates are not available. The app is not running from a git clone.");
@@ -112,7 +113,7 @@ public static class Endpoints
             });
             _ = Task.Run(async () => { await Task.Delay(800); life.StopApplication(); });
             return Results.Accepted();
-        });
+        }).RequireAuthorization(AuthSetup.AdminPolicy);
     }
 
     private static async Task<object> SystemInfo(UpdateChecker u, AppPaths p, BackupService b, SettingsService s, INotifier n) => new

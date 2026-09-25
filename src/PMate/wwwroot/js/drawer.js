@@ -38,7 +38,7 @@ export function renderDrawer() {
   if (!isNew && !task(ui.taskId)) return closeDrawer();
   if (isNew && !ui.newTask) return;
   const t = isNew
-    ? {id: '', title: ui.newTask.title || '', projectId: ui.newTask.projectId || '', milestoneId: '', owner: db.settings.me, due: '', priority: 'medium', status: firstOpen()?.id, description: ''}
+    ? {id: '', title: ui.newTask.title || '', projectId: ui.newTask.projectId || '', milestoneId: '', owner: ui.me?.displayName || '', due: '', priority: 'medium', status: firstOpen()?.id, description: ''}
     : task(ui.taskId);
   const p = proj(t.projectId);
   d.hidden = false;

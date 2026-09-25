@@ -24,6 +24,11 @@ async function request(method, url, body, {raw = false} = {}) {
   let res;
   try { res = await fetch(BASE + url, init); }
   catch { throw new Error('Cannot reach the PMate service. Is it running?'); }
+  // Signed out, or the sign-in ended (password changed, account disabled): go to the login page.
+  if (res.status === 401 && !url.startsWith('/api/auth/')) {
+    location.href = '/login.html';
+    throw new Error('Please sign in again.');
+  }
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try { const j = await res.json(); msg = j.error || j.title || msg; } catch {}

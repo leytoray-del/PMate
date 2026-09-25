@@ -202,6 +202,37 @@ public class DeleteBatch
     public DateTime DeletedAt { get; set; } = DateTime.UtcNow;
 }
 
+public static class Roles
+{
+    /// <summary>Manages users, settings, board columns, backups and updates.</summary>
+    public const string Admin = "admin";
+    /// <summary>Works with projects, tasks, notes and the RAID log.</summary>
+    public const string Member = "member";
+    public static readonly string[] All = [Admin, Member];
+}
+
+/// <summary>A person who can sign in. Users are disabled, never deleted, so "created by" history stays valid.</summary>
+public class User
+{
+    public string Id { get; set; } = Ids.New();
+    public string UserName { get; set; } = "";
+    /// <summary>Lower-case user name, unique. Sign-in is not case-sensitive.</summary>
+    public string NormalizedUserName { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Role { get; set; } = Roles.Member;
+    /// <summary>PBKDF2 hash with salt, see <c>PasswordHasher</c>. The password itself is never stored.</summary>
+    [JsonIgnore] public string PasswordHash { get; set; } = "";
+    /// <summary>Changes when the password, role or active state changes. Sign-ins made before the change stop working.</summary>
+    [JsonIgnore] public string SecurityStamp { get; set; } = Ids.New();
+    public bool IsActive { get; set; } = true;
+    /// <summary>Set after an admin creates the user or resets the password.</summary>
+    public bool MustChangePassword { get; set; }
+    [JsonIgnore] public int FailedLogins { get; set; }
+    [JsonIgnore] public DateTime? LockoutEnd { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAt { get; set; }
+}
+
 /// <summary>A board column. Users can rename, reorder, add and remove them.</summary>
 public class BoardStatus
 {

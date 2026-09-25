@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DeleteBatch> DeleteBatches => Set<DeleteBatch>();
     public DbSet<BoardStatus> Statuses => Set<BoardStatus>();
     public DbSet<Setting> Settings => Set<Setting>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -62,6 +63,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Name).HasMaxLength(100);
         });
         b.Entity<Setting>(e => e.HasKey(x => x.Key));
+        b.Entity<User>(e =>
+        {
+            e.Property(x => x.UserName).HasMaxLength(50);
+            e.Property(x => x.NormalizedUserName).HasMaxLength(50);
+            e.Property(x => x.DisplayName).HasMaxLength(100);
+            e.HasIndex(x => x.NormalizedUserName).IsUnique();
+        });
 
         SoftDelete<Project>(b);
         SoftDelete<Milestone>(b);

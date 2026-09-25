@@ -1,5 +1,3 @@
-using PMate.Data;
-
 namespace PMate.Services;
 
 /// <summary>An error the user can fix. The API returns it as { error: message } with the given status code.</summary>
@@ -8,28 +6,12 @@ public class AppException(string message, int statusCode = 400) : Exception(mess
     public int StatusCode { get; } = statusCode;
 }
 
-/// <summary>
-/// Who is making the change. Today this is the single local user from Settings.
-/// When the app moves to the cloud, replace it with an implementation that reads the signed-in user.
-/// </summary>
+/// <summary>Who is making the change: the signed-in user (see <c>PMate.Auth.HttpCurrentUser</c>). Null in background jobs.</summary>
 public interface ICurrentUser
 {
+    string? Id { get; }
+    /// <summary>Display name. Stored in CreatedBy fields.</summary>
     string? Name { get; }
-}
-
-public class LocalUser(AppDbContext db) : ICurrentUser
-{
-    private string? _name;
-    private bool _loaded;
-
-    public string? Name
-    {
-        get
-        {
-            if (!_loaded) { _name = db.Settings.Find(SettingKeys.Me)?.Value; _loaded = true; }
-            return string.IsNullOrWhiteSpace(_name) ? null : _name;
-        }
-    }
 }
 
 public static class Clock

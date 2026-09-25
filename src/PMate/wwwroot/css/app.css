@@ -231,3 +231,26 @@ tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
 .tabs button{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:3px 12px;cursor:pointer;font-size:13px}
 .tabs button.on{background:var(--accent-weak);color:var(--accent);border-color:transparent;font-weight:600}
 .tabs button .muted{margin-left:4px}
+
+/* login page */
+.login-page{display:flex;align-items:flex-start;justify-content:center;min-height:100vh;padding:10vh 16px 40px}
+.lbox{width:min(400px,100%);padding:26px 28px}
+.lbrand{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;margin-bottom:18px}
+.lbox h1{font-size:18px;margin:0 0 14px}
+.lbox form{display:flex;flex-direction:column;gap:12px}
+.lbox form[hidden]{display:none}
+.lbox label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.lbox label>input,.lbox .pw input{font-size:15px;color:var(--text);padding:8px 10px}
+.lbox label.check{flex-direction:row;align-items:center;gap:8px;color:var(--text)}
+.lbox .pw{display:flex;align-items:center;gap:6px}
+.lbox .pw input{flex:1}
+.lsubmit{padding:9px 12px;font-size:15px}
+.lerror{background:var(--danger-weak);color:var(--danger);border-radius:8px;padding:8px 10px;font-size:13px}
+.lerror[hidden]{display:none}
+
+/* signed-in user in the sidebar */
+.side .me{font-size:13px;color:var(--text);font-weight:600}
+.side .me-actions{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+
+/* Anything marked hidden stays hidden, even when a class above sets display. */
+[hidden]{display:none !important}

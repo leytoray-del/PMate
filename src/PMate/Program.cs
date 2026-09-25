@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PMate.Api;
+using PMate.Auth;
 using PMate.Data;
 using PMate.Infrastructure;
 using PMate.Services;
@@ -10,7 +11,7 @@ var paths = AppPaths.Create(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton(paths);
 builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={paths.DatabaseFile}"));
 
-builder.Services.AddScoped<ICurrentUser, LocalUser>();
+builder.Services.AddPMateAuth(paths);
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<StatusService>();
 builder.Services.AddScoped<TaskService>();
@@ -78,9 +79,14 @@ app.Use(async (ctx, next) =>
     }
 });
 
+app.UseAuthentication();
+app.UsePMatePageRules();
 app.UseDefaultFiles();
+// Static files (HTML, CSS, JS) hold no data, so they are public. All data comes from the API, which needs a sign-in.
 // "no-cache" makes the browser check for a new file on each load, so an update shows up right after restart.
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache" });
+app.UseAuthorization();
+app.MapAuthApi();
 app.MapApi();
 
 app.Logger.LogInformation("Data folder: {DataDir}", paths.DataDir);

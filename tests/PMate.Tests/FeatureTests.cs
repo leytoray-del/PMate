@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using PMate.Data;
@@ -31,10 +32,10 @@ public sealed class FeatureTests : IAsyncLifetime
 
     private AppDbContext NewContext() => new(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_conn).Options);
     private TrashService Trash => new(_db);
-    private TaskService Tasks => new(_db, new LocalUser(_db), Trash);
-    private ProjectService Projects => new(_db, new LocalUser(_db), Trash);
-    private NoteService Notes => new(_db, new LocalUser(_db), Trash);
-    private RaidService Raid => new(_db, new LocalUser(_db), Trash);
+    private TaskService Tasks => new(_db, new TestUser(), Trash);
+    private ProjectService Projects => new(_db, new TestUser(), Trash);
+    private NoteService Notes => new(_db, new TestUser(), Trash);
+    private RaidService Raid => new(_db, new TestUser(), Trash);
 
     private Task<Project> NewProject(string name = "CRM") => Projects.SaveAsync(null, new ProjectInput(name, null, null, null, null, null, null));
     private Task<TaskItem> NewTask(string title, string? projectId = null, DateOnly? due = null) =>
@@ -135,7 +136,7 @@ public sealed class FeatureTests : IAsyncLifetime
             File.WriteAllText(Path.Combine(dir, "pm-assistant.db"), "db");
             Directory.CreateDirectory(Path.Combine(dir, "backups"));
             File.WriteAllText(Path.Combine(dir, "backups", "pm-assistant-2026-09-01.db"), "backup");
-            var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:DataDir"] = dir }).Build();
             var env = new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { ContentRootPath = dir };
 
@@ -146,6 +147,31 @@ public sealed class FeatureTests : IAsyncLifetime
             Assert.True(File.Exists(Path.Combine(dir, "backups", "pmate-2026-09-01.db")));
         }
         finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void Old_data_folder_moves_even_when_the_launcher_already_created_the_new_one()
+    {
+        var root = Directory.CreateTempSubdirectory("pmate-test-").FullName;
+        try
+        {
+            var oldDir = Path.Combine(root, "PmAssistant");
+            var newDir = Path.Combine(root, "PMate");
+            Directory.CreateDirectory(Path.Combine(oldDir, "logs"));
+            File.WriteAllText(Path.Combine(oldDir, "pm-assistant.db"), "db");
+            File.WriteAllText(Path.Combine(oldDir, "logs", "launcher.log"), "old log");
+            File.WriteAllText(Path.Combine(oldDir, "logs", "app.log"), "old app log");
+            Directory.CreateDirectory(Path.Combine(newDir, "logs"));
+            File.WriteAllText(Path.Combine(newDir, "logs", "launcher.log"), "new log");
+
+            AppPaths.MoveDataFromOldName(oldDir, newDir);
+
+            Assert.Equal("db", File.ReadAllText(Path.Combine(newDir, "pmate.db")));
+            Assert.Equal("new log", File.ReadAllText(Path.Combine(newDir, "logs", "launcher.log")));
+            Assert.Equal("old app log", File.ReadAllText(Path.Combine(newDir, "logs", "app.log")));
+            Assert.False(File.Exists(Path.Combine(oldDir, "pm-assistant.db")));
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     /* ---------- editing records ---------- */

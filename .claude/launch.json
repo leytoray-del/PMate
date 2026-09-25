@@ -6,6 +6,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/PMate", "--launch-profile", "dev"],
       "port": 5179
+    },
+    {
+      "name": "pmate-uitest",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/PMate", "--launch-profile", "dev", "--", "--Storage:DataDir=../../.devdata/uitest", "--Urls=http://localhost:5180"],
+      "port": 5180
     }
   ]
 }

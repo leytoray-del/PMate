@@ -2,6 +2,7 @@
 // Every change goes to the API first. The local copy is updated from the server's answer.
 import { api } from './api.js';
 import { by } from './util.js';
+import { ui } from './state.js';
 
 export const db = {settings: {me: '', hoursPerDay: 8, backupDir: ''}, statuses: [], projects: [], milestones: [], tasks: [], updates: [], notes: [], raidItems: []};
 
@@ -47,7 +48,7 @@ export const isActivity = u => u.type !== 'status';
 export const recentDone = t => isDone(t) && t.doneAt && Date.now() - t.doneAt < 14 * 864e5;
 export const projLabel = p => p ? (p.code ? `${p.code} ${p.name}` : p.name) : 'No project';
 export const openCommitCount = id => db.updates.filter(u => u.taskId === id && u.type === 'commit' && !u.commitDone).length;
-export const owners = () => [...new Set([db.settings.me, ...db.tasks.map(t => t.owner), ...db.updates.map(u => u.who)].filter(Boolean))].sort();
+export const owners = () => [...new Set([ui.me?.displayName, ...db.tasks.map(t => t.owner), ...db.updates.map(u => u.who)].filter(Boolean))].sort();
 
 /* ---------- tasks ---------- */
 const taskBody = t => ({title: t.title, projectId: t.projectId, milestoneId: t.milestoneId, owner: t.owner,
