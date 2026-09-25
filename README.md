@@ -124,4 +124,6 @@ dotnet ef migrations add 名称 --project src/PMate --output-dir Data/Migrations
 | 权限（谁能看哪个项目） | 增加项目成员表，在服务层过滤 |
 | 部署 | Azure App Service 或容器，前端代码不用改 |
 
+部署到 Google Cloud 免费服务器：见 [docs/deploy-gcp.md](docs/deploy-gcp.md)。
+
 注意：公司数据放到云端之前，要先得到 IT 的批准。

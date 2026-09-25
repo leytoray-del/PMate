@@ -1,0 +1,39 @@
+# systemd service for PMate on the cloud server. server-setup.sh copies it to /etc/systemd/system/pmate.service
+# and replaces __DOMAIN__. The app listens only on 127.0.0.1. Caddy in front of it handles HTTPS.
+[Unit]
+Description=PMate project assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pmate
+Group=pmate
+WorkingDirectory=/opt/pmate/app
+ExecStart=/opt/pmate/app/PMate
+Restart=always
+RestartSec=5
+
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=Urls=http://127.0.0.1:5178
+# "localhost" is for the SSH tunnel used to create the first account (see docs/deploy-gcp.md).
+Environment=AllowedHosts=__DOMAIN__;localhost
+Environment=Storage__DataDir=/var/lib/pmate
+# The server is not a git clone. Updates come from scripts/deploy.ps1.
+Environment=Updates__Enabled=false
+# Caddy sends X-Forwarded-Proto, so the app knows the page came over HTTPS and marks the sign-in cookie Secure.
+# Safe because the app only listens on 127.0.0.1, so only Caddy can reach it.
+Environment=ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+# "Today", due dates and reminders use the server clock.
+Environment=TZ=Asia/Singapore
+# Uses less memory. Fits the small free servers better.
+Environment=DOTNET_gcServer=0
+Environment=HOME=/var/lib/pmate
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pmate
+
+[Install]
+WantedBy=multi-user.target

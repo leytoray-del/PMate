@@ -1,0 +1,15 @@
+# Caddy gets and renews the HTTPS certificate for this name by itself.
+# server-setup.sh copies this file to /etc/caddy/Caddyfile and replaces __DOMAIN__.
+__DOMAIN__ {
+	# Compress pages and API answers. Makes the first load on a phone faster.
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:5178
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+}

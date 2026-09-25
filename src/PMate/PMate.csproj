@@ -9,17 +9,21 @@
   </PropertyGroup>
 
   <!-- On Windows, build with the tray icon and desktop notifications (folder Desktop/).
-       Other systems, for example a cloud server, build without it. -->
-  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+       Other systems, for example a cloud server, build without it.
+       "-p:Desktop=false" builds without it on Windows too. scripts/deploy.ps1 uses this to build the Linux server version. -->
+  <PropertyGroup>
+    <Desktop Condition="'$(Desktop)' == ''">$([MSBuild]::IsOSPlatform('Windows'))</Desktop>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Desktop)' == 'true'">
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <DefineConstants>$(DefineConstants);DESKTOP</DefineConstants>
   </PropertyGroup>
-  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+  <ItemGroup Condition="'$(Desktop)' == 'true'">
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
   </ItemGroup>
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+  <ItemGroup Condition="'$(Desktop)' != 'true'">
     <Compile Remove="Desktop\**" />
   </ItemGroup>
 
