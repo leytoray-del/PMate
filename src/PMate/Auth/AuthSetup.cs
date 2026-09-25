@@ -128,4 +128,5 @@ public sealed class HttpCurrentUser(IHttpContextAccessor http) : ICurrentUser
     private ClaimsPrincipal? Principal => http.HttpContext?.User;
     public string? Id => Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
     public string? Name => Principal?.FindFirstValue(ClaimTypes.Name);
+    public bool IsAdmin => Principal?.IsInRole(Roles.Admin) == true;
 }

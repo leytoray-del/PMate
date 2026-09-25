@@ -8,6 +8,7 @@ export const ui = {
   showClosed: false,
   tsWeek: weekStart(today()),
   tsDay: today(),
+  tsUser: null,       // whose timesheet (admins can pick); null = me
   taskId: null,       // task open in the drawer
   newTask: null,      // preset for the "new task" drawer
   tlFilter: 'all',    // timeline filter in the drawer

@@ -1,12 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PMate.Domain;
+using PMate.Services;
 
 namespace PMate.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+/// <param name="user">
+/// The signed-in user. Decides what the access filters let through. Null (background jobs, tests, sign-in itself)
+/// means no access limit.
+/// </param>
+public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? user = null) : DbContext(options)
 {
+    public const string SoftDeleteFilter = "SoftDelete";
+    public const string AccessFilter = "Access";
+
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<Milestone> Milestones => Set<Milestone>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
     public DbSet<TaskUpdate> Updates => Set<TaskUpdate>();
@@ -17,6 +26,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<User> Users => Set<User>();
 
+    // Read by the access filters each time a query runs. EF turns them into query parameters.
+    public bool AccessAll => user?.Id is null || user.IsAdmin;
+    public string? AccessUserId => user?.Id;
+    public string? AccessUserName => user?.Name;
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // No foreign key constraints: deletes cascade in the services, and imports stay tolerant of old data.
@@ -25,6 +39,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Code).HasMaxLength(50);
             e.HasIndex(x => x.Code);
+        });
+        b.Entity<ProjectMember>(e =>
+        {
+            e.HasKey(x => new { x.ProjectId, x.UserId });
+            e.HasIndex(x => x.UserId);
         });
         b.Entity<Milestone>(e =>
         {
@@ -45,6 +64,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.TaskId);
             e.HasIndex(x => x.ProjectId);
             e.HasIndex(x => x.Date);
+            e.HasIndex(x => x.CreatedById);
         });
         b.Entity<Note>(e =>
         {
@@ -77,6 +97,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         SoftDelete<TaskUpdate>(b);
         SoftDelete<Note>(b);
         SoftDelete<RaidItem>(b);
+
+        // Who sees what. Admins see everything. Members see:
+        // - projects they are on, and everything in those projects;
+        // - tasks without a project that they created or own;
+        // - notes and records without a project or task that they created.
+        b.Entity<Project>().HasQueryFilter(AccessFilter, p =>
+            AccessAll || ProjectMembers.Any(m => m.ProjectId == p.Id && m.UserId == AccessUserId));
+        b.Entity<Milestone>().HasQueryFilter(AccessFilter, x =>
+            AccessAll || ProjectMembers.Any(m => m.ProjectId == x.ProjectId && m.UserId == AccessUserId));
+        b.Entity<RaidItem>().HasQueryFilter(AccessFilter, x =>
+            AccessAll || ProjectMembers.Any(m => m.ProjectId == x.ProjectId && m.UserId == AccessUserId));
+        b.Entity<TaskItem>().HasQueryFilter(AccessFilter, t =>
+            AccessAll
+            || (t.ProjectId != null && ProjectMembers.Any(m => m.ProjectId == t.ProjectId && m.UserId == AccessUserId))
+            || (t.ProjectId == null && (t.CreatedById == AccessUserId || (t.Owner != null && t.Owner == AccessUserName))));
+        b.Entity<TaskUpdate>().HasQueryFilter(AccessFilter, u =>
+            AccessAll
+            || (u.ProjectId != null && ProjectMembers.Any(m => m.ProjectId == u.ProjectId && m.UserId == AccessUserId))
+            || (u.ProjectId == null && u.TaskId != null && Tasks.Any(t => t.Id == u.TaskId))
+            || (u.ProjectId == null && u.TaskId == null && u.CreatedById == AccessUserId));
+        b.Entity<Note>().HasQueryFilter(AccessFilter, n =>
+            AccessAll
+            || (n.ProjectId != null && ProjectMembers.Any(m => m.ProjectId == n.ProjectId && m.UserId == AccessUserId))
+            || (n.ProjectId == null && n.CreatedById == AccessUserId));
+        b.Entity<DeleteBatch>().HasQueryFilter(AccessFilter, x => AccessAll || x.DeletedById == AccessUserId);
     }
 
     /// <summary>
@@ -95,7 +140,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     private static void SoftDelete<T>(ModelBuilder b) where T : class, ISoftDelete
     {
-        b.Entity<T>().HasQueryFilter(x => x.DeletedAt == null);
+        b.Entity<T>().HasQueryFilter(SoftDeleteFilter, x => x.DeletedAt == null);
         b.Entity<T>().HasIndex(x => x.DeleteBatchId);
     }
 }

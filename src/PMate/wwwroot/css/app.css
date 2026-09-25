@@ -116,7 +116,7 @@ tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
 .form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
 .form label>*{font-size:14px;color:var(--text)}
 .form .full{grid-column:1/-1}
-.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;align-items:center}
+.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:14px;align-items:center}
 .actions .l{margin-right:auto}
 /* right-side task drawer */
 .drawer{position:fixed;top:0;right:0;bottom:0;width:var(--drawer);max-width:100%;background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.08);z-index:40;display:flex;flex-direction:column;animation:slidein .18s ease-out}
@@ -179,15 +179,38 @@ tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
 .welcome{max-width:640px}
 .welcome ol{padding-left:20px}
 .kbd{font-family:Consolas,monospace;font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 5px;background:var(--panel2)}
+/* Grid items may shrink below their content width, so long text does not push the page wider than the screen. */
+.grid>*{min-width:0}
+.topbar,.side-backdrop,.note-back{display:none}
+.menu-btn{position:relative;font-size:20px;padding:4px 10px}
+.menu-btn .n{position:absolute;top:0;right:0;font-size:11px;line-height:16px;min-width:16px;background:var(--danger);color:#fff;border-radius:8px;padding:0 4px}
+
+/* Phones and small tablets */
 @media (max-width:900px){
   .app{flex-direction:column}
-  .side{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;padding:8px}
-  .side .foot,.brand{display:none}
-  .nav{width:auto}
-  .main{padding:16px}
+  .topbar{display:flex;align-items:center;gap:6px;position:sticky;top:0;z-index:30;height:52px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .topbar-title{font-weight:600;font-size:16px}
+  /* The menu slides in from the left. It sits under dialogs, so "My account" can open on top of it. */
+  .side{position:fixed;top:0;left:0;bottom:0;height:auto;width:min(280px,82vw);z-index:56;transform:translateX(-105%);transition:transform .2s ease-out;overflow-y:auto;box-shadow:none}
+  body.menu-open .side{transform:none;box-shadow:8px 0 24px rgba(0,0,0,.18)}
+  body.menu-open .side-backdrop{display:block;position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.35)}
+  body.menu-open{overflow:hidden}
+  .nav{padding:12px;font-size:15px}
+  .main{padding:14px 12px 60px}
+  .head h1{font-size:18px}
   .form{grid-template-columns:1fr}
   .props{grid-template-columns:80px 1fr}
-  .g2{grid-template-columns:1fr}
+  .g2,.g3{grid-template-columns:1fr}
+  /* Wide tables scroll sideways inside their card instead of making the page wider. */
+  .card>table{display:block;overflow-x:auto;white-space:nowrap}
+  .drawer{width:100%;border-left:0}
+  .modal{padding:12px 8px}
+  /* 16px text in fields stops iPhones from zooming in when a field gets focus. */
+  input,select,textarea{font-size:16px}
+  /* Notes: show the list, or the open note with a button back to the list. */
+  .notes.has-sel .nlist,.notes:not(.has-sel) .neditor{display:none}
+  .note-back{display:inline-block;margin-bottom:8px}
+  .doc{min-height:240px}
 }
 
 /* update banner and restart overlay */
@@ -220,7 +243,101 @@ tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
 .neditor .ntitle{font-size:18px;font-weight:600;border:1px solid transparent;width:100%;padding:4px 6px;margin-left:-7px;border-radius:6px;background:transparent}
 .neditor .ntitle:hover{border-color:var(--line)}
 .neditor .nprops{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 10px}
-.neditor .nbody{min-height:420px;font-family:"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.6}
+.neditor .nbody{min-height:420px;border-top:1px solid var(--line);padding-top:6px}
+.neditor .banner[hidden]{display:none}
+
+/* block editor page (js/editor.js) */
+/* Sizes follow Confluence Cloud pages: 16px text, line height 1.714, headings in em so they scale with the text. */
+.doc{min-height:400px;outline:none;font-size:16px;line-height:1.714;padding:4px 2px 40px;word-wrap:break-word}
+.doc>*:first-child{margin-top:0}
+.doc p{margin:0 0 12px}
+.doc h1,.doc h2,.doc h3{line-height:1.25;font-weight:600;margin:28px 0 10px}
+.doc h1{font-size:1.714em} .doc h2{font-size:1.43em} .doc h3{font-size:1.14em}
+.doc ul,.doc ol{padding-left:26px;margin:0 0 12px}
+.doc li>p{margin:0 0 2px}
+.doc a{color:var(--accent);text-decoration:underline;cursor:text}
+.doc blockquote{border-left:3px solid var(--line);margin:0 0 10px;padding:2px 0 2px 14px;color:var(--muted)}
+.doc hr{border:0;border-top:2px solid var(--line);margin:18px 0}
+.doc hr.ProseMirror-selectednode{border-top-color:var(--accent)}
+.doc :not(pre)>code{font:.875em Consolas,"Cascadia Mono",monospace;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.doc p.is-empty::before,.doc h1.is-empty::before,.doc h2.is-empty::before,.doc h3.is-empty::before{content:attr(data-placeholder);color:var(--muted);opacity:.7;float:left;height:0;pointer-events:none}
+.doc .suggestion{color:var(--accent)}
+/* action items */
+.doc ul[data-type=taskList]{list-style:none;padding-left:2px}
+.doc ul[data-type=taskList] li{display:flex;gap:8px;align-items:flex-start}
+.doc ul[data-type=taskList] li>label{flex:none;margin-top:4px;user-select:none}
+.doc ul[data-type=taskList] li>label input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.doc ul[data-type=taskList] li>div{flex:1;min-width:0}
+.doc ul[data-type=taskList] li[data-checked=true]>div{color:var(--muted);text-decoration:line-through}
+/* tables */
+.doc table{border-collapse:collapse;margin:4px 0 12px;width:100%;table-layout:fixed}
+.doc th,.doc td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;position:relative}
+.doc th{background:var(--panel2);text-align:left;font-weight:600}
+.doc td>p,.doc th>p{margin:0}
+.doc .selectedCell::after{content:"";position:absolute;inset:0;background:var(--accent-weak);opacity:.6;pointer-events:none}
+.doc .tableWrapper{overflow-x:auto}
+/* code block */
+.code-block{border:1px solid var(--line);border-radius:8px;margin:4px 0 12px;background:var(--code-bg);overflow:hidden}
+.code-head{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:4px 6px 4px 8px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.code-head select{font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:1px 4px}
+.code-block pre{margin:0;padding:10px 12px;overflow-x:auto;tab-size:2}
+.code-block code{font:14px/1.6 Consolas,"Cascadia Mono","Courier New",monospace;white-space:pre;color:var(--text);background:none;border:0;padding:0}
+.hljs-comment,.hljs-quote{color:var(--hl-comment);font-style:italic}
+.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-type,.hljs-doctag{color:var(--hl-keyword)}
+.hljs-string,.hljs-regexp,.hljs-addition,.hljs-attribute,.hljs-template-tag{color:var(--hl-string)}
+.hljs-number,.hljs-symbol,.hljs-bullet,.hljs-variable,.hljs-template-variable{color:var(--hl-number)}
+.hljs-title,.hljs-section,.hljs-name,.hljs-selector-id,.hljs-selector-class{color:var(--hl-title)}
+.hljs-attr,.hljs-property,.hljs-params,.hljs-meta{color:var(--hl-attr)}
+.hljs-built_in,.hljs-class .hljs-title,.hljs-title.class_{color:var(--hl-builtin)}
+.hljs-deletion{color:var(--danger)}
+.hljs-emphasis{font-style:italic} .hljs-strong{font-weight:700}
+:root{--code-bg:#f6f8fa;--hl-comment:#6a737d;--hl-keyword:#cf222e;--hl-string:#0a3069;--hl-number:#0550ae;--hl-title:#8250df;--hl-attr:#953800;--hl-builtin:#116329}
+@media (prefers-color-scheme: dark){
+  :root{--code-bg:#161a20;--hl-comment:#8b949e;--hl-keyword:#ff7b72;--hl-string:#a5d6ff;--hl-number:#79c0ff;--hl-title:#d2a8ff;--hl-attr:#ffa657;--hl-builtin:#7ee787}
+}
+/* panels */
+.panel{--pc:#2563eb;--pb:#e8efff;position:relative;border-radius:8px;background:var(--pb);margin:4px 0 12px;padding:10px 12px 10px 40px}
+.panel[data-panel=note]{--pc:#7c3aed;--pb:#f1eafe}
+.panel[data-panel=success]{--pc:#15803d;--pb:#e6f5eb}
+.panel[data-panel=warning]{--pc:#a15c00;--pb:#fff3df}
+.panel[data-panel=error]{--pc:#c62828;--pb:#fdecec}
+@media (prefers-color-scheme: dark){
+  .panel{--pc:#6b9bff;--pb:#1e2a45}
+  .panel[data-panel=note]{--pc:#b794f6;--pb:#2a2140}
+  .panel[data-panel=success]{--pc:#4ade80;--pb:#16301f}
+  .panel[data-panel=warning]{--pc:#fbbf24;--pb:#3a2f17}
+  .panel[data-panel=error]{--pc:#f87171;--pb:#3b1f22}
+}
+.panel-icon{position:absolute;left:12px;top:12px;width:18px;height:18px;border-radius:50%;background:var(--pc);color:var(--panel);font:700 12px/18px "Segoe UI",sans-serif;text-align:center;user-select:none}
+.panel-icon::after{content:"i"}
+.panel[data-panel=note] .panel-icon::after{content:"✎"}
+.panel[data-panel=success] .panel-icon::after{content:"✓"}
+.panel[data-panel=warning] .panel-icon::after{content:"!"}
+.panel[data-panel=error] .panel-icon::after{content:"×"}
+.panel-body>*:last-child{margin-bottom:0}
+.panel-tools{position:absolute;right:6px;top:-14px;display:none;gap:4px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:3px 6px;box-shadow:var(--shadow);z-index:2}
+.panel:hover>.panel-tools,.panel:focus-within>.panel-tools{display:flex}
+.panel-dot{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);cursor:pointer;padding:0;background:#2563eb}
+.panel-dot[data-kind=note]{background:#7c3aed} .panel-dot[data-kind=success]{background:#15803d}
+.panel-dot[data-kind=warning]{background:#d97706} .panel-dot[data-kind=error]{background:#c62828}
+.panel-remove{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 2px}
+.panel-remove:hover{color:var(--danger)}
+/* "/" menu and floating bars */
+.slash-menu{z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.16);padding:4px;width:290px;max-height:340px;overflow-y:auto}
+.slash-item{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer}
+.slash-item.on,.slash-item:hover{background:var(--accent-weak)}
+.slash-item .slash-title{display:block;font-weight:600;font-size:13px}
+.slash-item .slash-hint{display:block;font-size:12px;color:var(--muted)}
+.slash-icon{flex:none;width:30px;height:30px;border:1px solid var(--line);border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--panel2)}
+.slash-icon[data-panel]{border-color:transparent}
+.slash-icon[data-panel=info]{background:#2563eb} .slash-icon[data-panel=note]{background:#7c3aed} .slash-icon[data-panel=success]{background:#15803d}
+.slash-icon[data-panel=warning]{background:#d97706} .slash-icon[data-panel=error]{background:#c62828}
+.slash-empty{padding:8px;color:var(--muted);font-size:13px}
+.float-bar{z-index:40;display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(16,24,40,.14);padding:3px}
+.float-bar button{border:0;background:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:13px;min-width:28px}
+.float-bar button:hover{background:var(--panel2)}
+.float-bar button.on{background:var(--accent-weak);color:var(--accent)}
+.float-bar button.danger{color:var(--danger)}
 .neditor .ntools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .neditor .ntools .sp{flex:1}
 @media (max-width:900px){ .notes{grid-template-columns:1fr} .nlist{position:static;max-height:none} }

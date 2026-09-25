@@ -12,10 +12,11 @@ using PMate.Services;
 namespace PMate.Tests;
 
 /// <summary>Stand-in for the signed-in user in service tests.</summary>
-public sealed class TestUser(string? name = "Tester") : ICurrentUser
+public sealed class TestUser(string? name = "Tester", string id = "test-user", bool isAdmin = false) : ICurrentUser
 {
-    public string? Id => "test-user";
+    public string? Id => id;
     public string? Name => name;
+    public bool IsAdmin => isAdmin;
 }
 
 /// <summary>Account rules: setup, sign-in, lockout and admin actions.</summary>

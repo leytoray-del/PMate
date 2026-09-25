@@ -12,7 +12,7 @@ public class ProjectService(AppDbContext db, ICurrentUser user, TrashService tra
 {
     public async Task<Project> SaveAsync(string? id, ProjectInput i)
     {
-        var p = id is null ? new Project { CreatedBy = user.Name } : await db.Projects.FindAsync(id) ?? throw new AppException("Project not found.", 404);
+        var p = id is null ? new Project { CreatedBy = user.Name, CreatedById = user.Id } : await db.Projects.FindAsync(id) ?? throw new AppException("Project not found.", 404);
         p.Name = Text.Clean(i.Name) ?? throw new AppException("Project name is required.");
         p.Code = Text.Clean(i.Code);
         p.Client = Text.Clean(i.Client);
@@ -22,9 +22,33 @@ public class ProjectService(AppDbContext db, ICurrentUser user, TrashService tra
         if (p.Start is not null && p.End is not null && p.End < p.Start) throw new AppException("End date cannot be before the start date.");
         p.Description = Text.Clean(i.Description);
         p.UpdatedAt = DateTime.UtcNow;
-        if (id is null) db.Projects.Add(p);
+        if (id is null)
+        {
+            db.Projects.Add(p);
+            // The creator joins the team, so a member can see the project they just made.
+            if (user.Id is not null) db.ProjectMembers.Add(new ProjectMember { ProjectId = p.Id, UserId = user.Id });
+        }
         await db.SaveChangesAsync();
         return p;
+    }
+
+    public Task<List<ProjectMember>> MembersAsync(string projectId) =>
+        db.ProjectMembers.AsNoTracking().Where(m => m.ProjectId == projectId).ToListAsync();
+
+    /// <summary>Replaces the project's team. Admin only (checked by the endpoint).</summary>
+    public async Task<List<ProjectMember>> SetMembersAsync(string projectId, IReadOnlyCollection<string> userIds)
+    {
+        if (!await db.Projects.AnyAsync(p => p.Id == projectId)) throw new AppException("Project not found.", 404);
+        var wanted = userIds.Distinct().ToHashSet();
+        var known = await db.Users.Where(u => wanted.Contains(u.Id)).Select(u => u.Id).ToListAsync();
+        if (known.Count != wanted.Count) throw new AppException("Unknown user in the team list.");
+
+        var current = await db.ProjectMembers.Where(m => m.ProjectId == projectId).ToListAsync();
+        db.ProjectMembers.RemoveRange(current.Where(m => !wanted.Contains(m.UserId)));
+        var have = current.Select(m => m.UserId).ToHashSet();
+        db.ProjectMembers.AddRange(wanted.Where(uid => !have.Contains(uid)).Select(uid => new ProjectMember { ProjectId = projectId, UserId = uid }));
+        await db.SaveChangesAsync();
+        return await MembersAsync(projectId);
     }
 
     /// <summary>Deletes the project with its milestones, tasks, records, notes and RAID items. Can be undone.</summary>

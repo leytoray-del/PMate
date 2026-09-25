@@ -10,8 +10,9 @@ public class AppException(string message, int statusCode = 400) : Exception(mess
 public interface ICurrentUser
 {
     string? Id { get; }
-    /// <summary>Display name. Stored in CreatedBy fields.</summary>
+    /// <summary>Display name. Stored in CreatedBy fields and used as task owner.</summary>
     string? Name { get; }
+    bool IsAdmin { get; }
 }
 
 public static class Clock

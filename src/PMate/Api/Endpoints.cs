@@ -34,7 +34,10 @@ public static class Endpoints
         // Projects and milestones
         api.MapPost("/projects", (ProjectInput input, ProjectService s) => s.SaveAsync(null, input));
         api.MapPut("/projects/{id}", (string id, ProjectInput input, ProjectService s) => s.SaveAsync(id, input));
-        api.MapDelete("/projects/{id}", (string id, ProjectService s) => s.DeleteAsync(id));
+        api.MapDelete("/projects/{id}", (string id, ProjectService s) => s.DeleteAsync(id)).RequireAuthorization(AuthSetup.AdminPolicy);
+        api.MapGet("/projects/{id}/members", (string id, ProjectService s) => s.MembersAsync(id));
+        api.MapPut("/projects/{id}/members", (string id, List<string> userIds, ProjectService s) => s.SetMembersAsync(id, userIds))
+            .RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapPost("/milestones", (MilestoneInput input, ProjectService s) => s.SaveMilestoneAsync(null, input));
         api.MapPut("/milestones/{id}", (string id, MilestoneInput input, ProjectService s) => s.SaveMilestoneAsync(id, input));
         api.MapDelete("/milestones/{id}", (string id, ProjectService s) => s.DeleteMilestoneAsync(id));

@@ -4,7 +4,12 @@ using PMate.Domain;
 
 namespace PMate.Services;
 
-public record NoteInput(string? ProjectId, string? Title, string? Body, string? Tags, DateOnly? NoteDate, bool Pinned);
+/// <summary>
+/// A note to save. The block editor sends <paramref name="Content"/> (its JSON); the plain text body is then made from it.
+/// <paramref name="Version"/> is the version the editor started from. Null skips the check (for example in imports).
+/// </summary>
+public record NoteInput(string? ProjectId, string? Title, string? Body, string? Tags, DateOnly? NoteDate, bool Pinned,
+    string? Content = null, int? Version = null);
 
 /// <summary>A search result. The snippet marks matches with \u0001 (start) and \u0002 (end).</summary>
 public record NoteHit(string Id, string Snippet);
@@ -13,15 +18,27 @@ public class NoteService(AppDbContext db, ICurrentUser user, TrashService trash)
 {
     public async Task<Note> SaveAsync(string? id, NoteInput i)
     {
-        var n = id is null ? new Note { CreatedBy = user.Name } : await db.Notes.FindAsync(id) ?? throw new AppException("Note not found.", 404);
+        var n = id is null ? new Note { CreatedBy = user.Name, CreatedById = user.Id } : await db.Notes.FindAsync(id) ?? throw new AppException("Note not found.", 404);
+        if (id is not null && i.Version is { } v && v != n.Version)
+            throw new AppException("Someone else changed this note after you opened it. Your latest changes are not saved.", 409);
         var projectId = Text.Clean(i.ProjectId);
         if (projectId is not null && !await db.Projects.AnyAsync(p => p.Id == projectId)) throw new AppException("Project not found.");
         n.ProjectId = projectId;
-        n.Body = i.Body ?? "";
+        if (i.Content is not null)
+        {
+            n.Content = i.Content;
+            n.Body = NoteText.FromContent(i.Content);
+        }
+        else
+        {
+            n.Content = null;
+            n.Body = i.Body ?? "";
+        }
         n.Title = Text.Clean(i.Title) ?? "";
         n.Tags = NormalizeTags(i.Tags);
         n.NoteDate = i.NoteDate ?? (id is null ? Clock.Today : n.NoteDate);
         n.Pinned = i.Pinned;
+        n.Version++;
         n.UpdatedAt = DateTime.UtcNow;
         if (id is null) db.Notes.Add(n);
         await db.SaveChangesAsync();

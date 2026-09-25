@@ -9,28 +9,49 @@ namespace PMate.Services;
 public record Snapshot(
     string Format, int Version, DateTime ExportedAt, AppSettings Settings, List<BoardStatus> Statuses,
     List<Project> Projects, List<Milestone> Milestones, List<TaskItem> Tasks, List<TaskUpdate> Updates,
-    List<Note>? Notes = null, List<RaidItem>? RaidItems = null)
+    List<Note>? Notes = null, List<RaidItem>? RaidItems = null,
+    List<ProjectMember>? ProjectMembers = null, List<Person>? People = null)
 {
     public const string FormatName = "pmate";
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 }
+
+/// <summary>A user as other users see them: for team lists and task owners. No sign-in details.</summary>
+public record Person(string Id, string DisplayName, bool IsActive);
 
 public record ImportResult(int Projects, int Milestones, int Tasks, int Updates, int Notes, int RaidItems);
 
-public class DataService(AppDbContext db, SettingsService settings, StatusService statuses)
+public class DataService(AppDbContext db, SettingsService settings, StatusService statuses, ICurrentUser? user = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public async Task<Snapshot> GetSnapshotAsync() => new(
-        Snapshot.FormatName, Snapshot.CurrentVersion, DateTime.UtcNow,
-        await settings.GetAsync(),
-        await statuses.ListAsync(),
-        await db.Projects.AsNoTracking().ToListAsync(),
-        await db.Milestones.AsNoTracking().ToListAsync(),
-        await db.Tasks.AsNoTracking().ToListAsync(),
-        await db.Updates.AsNoTracking().ToListAsync(),
-        await db.Notes.AsNoTracking().ToListAsync(),
-        await db.RaidItems.AsNoTracking().ToListAsync());
+    /// <summary>Everything the current user may see. The access filters in <see cref="AppDbContext"/> do the limiting.</summary>
+    public async Task<Snapshot> GetSnapshotAsync()
+    {
+        var projects = await db.Projects.AsNoTracking().ToListAsync();
+        var projectIds = projects.Select(p => p.Id).ToList();
+        var members = await db.ProjectMembers.AsNoTracking().Where(m => projectIds.Contains(m.ProjectId)).ToListAsync();
+        // Admins see all users. Members see the people on their projects, and themselves.
+        var peopleIds = members.Select(m => m.UserId).Append(user?.Id ?? "").ToList();
+        var all = db.AccessAll;
+        var people = await db.Users.AsNoTracking()
+            .Where(u => all || peopleIds.Contains(u.Id))
+            .OrderBy(u => u.DisplayName)
+            .Select(u => new Person(u.Id, u.DisplayName, u.IsActive))
+            .ToListAsync();
+        return new Snapshot(
+            Snapshot.FormatName, Snapshot.CurrentVersion, DateTime.UtcNow,
+            await settings.GetAsync(),
+            await statuses.ListAsync(),
+            projects,
+            await db.Milestones.AsNoTracking().ToListAsync(),
+            await db.Tasks.AsNoTracking().ToListAsync(),
+            await db.Updates.AsNoTracking().ToListAsync(),
+            await db.Notes.AsNoTracking().ToListAsync(),
+            await db.RaidItems.AsNoTracking().ToListAsync(),
+            members,
+            people);
+    }
 
     /// <summary>
     /// Imports a backup. "replace" deletes current data first and also restores settings and columns.
@@ -67,7 +88,9 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
             await AddNewAsync(db.Updates, data.Updates, u => u.Id),
             await AddNewAsync(db.Notes, data.Notes ?? [], n => n.Id),
             await AddNewAsync(db.RaidItems, data.RaidItems ?? [], r => r.Id));
+        await AddMembersAsync(data.ProjectMembers ?? []);
         await db.SaveChangesAsync();
+        await Ownership.AssignUnownedAsync(db);
         await tx.CommitAsync();
         return result;
     }
@@ -82,6 +105,7 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
         await db.Milestones.IgnoreQueryFilters().Where(m => projectIds.Contains(m.ProjectId)).ExecuteDeleteAsync();
         await db.Notes.IgnoreQueryFilters().Where(n => n.IsSample || (n.ProjectId != null && projectIds.Contains(n.ProjectId))).ExecuteDeleteAsync();
         await db.RaidItems.IgnoreQueryFilters().Where(r => r.IsSample || projectIds.Contains(r.ProjectId)).ExecuteDeleteAsync();
+        await db.ProjectMembers.Where(m => projectIds.Contains(m.ProjectId)).ExecuteDeleteAsync();
         await db.Projects.IgnoreQueryFilters().Where(p => p.IsSample).ExecuteDeleteAsync();
     }
 
@@ -93,8 +117,21 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
         await db.Milestones.IgnoreQueryFilters().ExecuteDeleteAsync();
         await db.Notes.IgnoreQueryFilters().ExecuteDeleteAsync();
         await db.RaidItems.IgnoreQueryFilters().ExecuteDeleteAsync();
+        await db.ProjectMembers.ExecuteDeleteAsync();
         await db.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
-        await db.DeleteBatches.ExecuteDeleteAsync();
+        await db.DeleteBatches.IgnoreQueryFilters().ExecuteDeleteAsync();
+    }
+
+    /// <summary>Adds team memberships from a backup, for users that exist here.</summary>
+    private async Task AddMembersAsync(List<ProjectMember> rows)
+    {
+        if (rows.Count == 0) return;
+        var users = (await db.Users.Select(u => u.Id).ToListAsync()).ToHashSet();
+        var have = (await db.ProjectMembers.Select(m => m.ProjectId + "|" + m.UserId).ToListAsync()).ToHashSet();
+        foreach (var m in rows.Where(m => users.Contains(m.UserId)))
+        {
+            if (have.Add(m.ProjectId + "|" + m.UserId)) db.ProjectMembers.Add(new ProjectMember { ProjectId = m.ProjectId, UserId = m.UserId, AddedAt = m.AddedAt });
+        }
     }
 
     private static async Task<int> AddNewAsync<T>(DbSet<T> set, List<T> rows, Func<T, string> id) where T : class
@@ -117,13 +154,13 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
         var s = root.Deserialize<Snapshot>(Json) ?? throw new AppException("The file is empty.");
         // "pm-assistant" is the format name from before the app was renamed to PMate.
         if (s.Format is not (Snapshot.FormatName or "pm-assistant")) throw new AppException("This file is not a PMate backup.");
-        return new ImportData(s.Settings, s.Statuses ?? [], s.Projects ?? [], s.Milestones ?? [], s.Tasks ?? [], s.Updates ?? [], s.Notes, s.RaidItems);
+        return new ImportData(s.Settings, s.Statuses ?? [], s.Projects ?? [], s.Milestones ?? [], s.Tasks ?? [], s.Updates ?? [], s.Notes, s.RaidItems, s.ProjectMembers);
     }
 }
 
 public record ImportData(AppSettings? Settings, List<BoardStatus> Statuses, List<Project> Projects,
     List<Milestone> Milestones, List<TaskItem> Tasks, List<TaskUpdate> Updates,
-    List<Note>? Notes = null, List<RaidItem>? RaidItems = null);
+    List<Note>? Notes = null, List<RaidItem>? RaidItems = null, List<ProjectMember>? ProjectMembers = null);
 
 /// <summary>Reads backups from the first version: a single HTML file that stored data in the browser.</summary>
 internal static class LegacyFormat

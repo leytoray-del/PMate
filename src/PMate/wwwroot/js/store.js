@@ -4,7 +4,8 @@ import { api } from './api.js';
 import { by } from './util.js';
 import { ui } from './state.js';
 
-export const db = {settings: {me: '', hoursPerDay: 8, backupDir: ''}, statuses: [], projects: [], milestones: [], tasks: [], updates: [], notes: [], raidItems: []};
+export const db = {settings: {hoursPerDay: 8, backupDir: ''}, statuses: [], projects: [], milestones: [], tasks: [], updates: [], notes: [], raidItems: [],
+  projectMembers: [], people: []};
 
 const TIME_KEYS = new Set(['createdAt', 'updatedAt', 'doneAt', 'exportedAt']);
 
@@ -30,6 +31,8 @@ export async function load() {
   db.updates = s.updates.map(norm);
   db.notes = (s.notes || []).map(norm);
   db.raidItems = (s.raidItems || []).map(norm);
+  db.projectMembers = s.projectMembers || [];
+  db.people = s.people || [];
 }
 
 /* ---------- lookups ---------- */
@@ -48,7 +51,11 @@ export const isActivity = u => u.type !== 'status';
 export const recentDone = t => isDone(t) && t.doneAt && Date.now() - t.doneAt < 14 * 864e5;
 export const projLabel = p => p ? (p.code ? `${p.code} ${p.name}` : p.name) : 'No project';
 export const openCommitCount = id => db.updates.filter(u => u.taskId === id && u.type === 'commit' && !u.commitDone).length;
-export const owners = () => [...new Set([ui.me?.displayName, ...db.tasks.map(t => t.owner), ...db.updates.map(u => u.who)].filter(Boolean))].sort();
+/** Names to offer as task owner: active users you can see, plus names already used (for example vendors). */
+export const owners = () => [...new Set([ui.me?.displayName, ...db.people.filter(p => p.isActive).map(p => p.displayName),
+  ...db.tasks.map(t => t.owner), ...db.updates.map(u => u.who)].filter(Boolean))].sort();
+export const person = id => db.people.find(p => p.id === id);
+export const team = projectId => db.projectMembers.filter(m => m.projectId === projectId).map(m => person(m.userId)).filter(Boolean);
 
 /* ---------- tasks ---------- */
 const taskBody = t => ({title: t.title, projectId: t.projectId, milestoneId: t.milestoneId, owner: t.owner,
@@ -100,6 +107,11 @@ export async function deleteProject(id) {
   await load();
   return r;
 }
+/** Replaces the project team (admins only). */
+export async function setTeam(projectId, userIds) {
+  const members = await api.put(`/api/projects/${projectId}/members`, userIds);
+  db.projectMembers = db.projectMembers.filter(m => m.projectId !== projectId).concat(members);
+}
 export async function saveMilestone(id, input) {
   return upsert(db.milestones, norm(id ? await api.put(`/api/milestones/${id}`, input) : await api.post('/api/milestones', input)));
 }
@@ -110,7 +122,10 @@ export async function deleteMilestone(id) {
 }
 
 /* ---------- notes ---------- */
-const noteBody = n => ({projectId: n.projectId, title: n.title, body: n.body, tags: n.tags, noteDate: n.noteDate, pinned: !!n.pinned});
+// content: the page as block editor JSON (a string). version: the version the editor started from.
+// The server refuses a save based on an old version, so nobody overwrites someone else's newer changes.
+const noteBody = n => ({projectId: n.projectId, title: n.title, body: n.body, tags: n.tags, noteDate: n.noteDate, pinned: !!n.pinned,
+  content: n.content || null, version: n.version ?? null});
 export async function saveNote(id, input) {
   return upsert(db.notes, norm(id ? await api.put(`/api/notes/${id}`, noteBody(input)) : await api.post('/api/notes', noteBody(input))));
 }

@@ -17,6 +17,8 @@ public static class AuthEndpoints
         auth.MapPost("/setup", async (SetupInput input, HttpContext ctx, UserService users) =>
         {
             var u = await users.SetupAsync(input);
+            // Data from before users existed belongs to this first admin.
+            await Ownership.AssignUnownedAsync(ctx.RequestServices.GetRequiredService<PMate.Data.AppDbContext>());
             await AuthSetup.SignInAsync(ctx, u, remember: false);
             return UserDto.From(u);
         }).AllowAnonymous();

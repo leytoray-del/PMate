@@ -1,6 +1,7 @@
 // Work notes: list with full-text search on the left, editor on the right. The editor saves while you type.
+// The page itself is a block editor (editor.js), loaded only when the Notes page opens.
 import { $, esc, fmtMD, today } from './util.js';
-import { db, note, proj, saveNote, searchNotes } from './store.js';
+import { db, note, proj, saveNote, searchNotes, load } from './store.js';
 import { ui } from './state.js';
 import { projOptions, toast } from './components.js';
 
@@ -10,7 +11,7 @@ const markSnippet = s => esc(s).replace(/\u0001/g, '<mark>').replace(/\u0002/g, 
 export function notesView() {
   const n = note(ui.notes.selectedId);
   return `<div class="head"><h1>Notes</h1><button class="btn primary" data-act="new-note">+ New note</button></div>
-  <div class="notes">
+  <div class="notes${n ? ' has-sel' : ''}">
     <div class="card nlist">
       <div class="bar"><input data-note-search placeholder="Search all notes" value="${esc(ui.notes.q)}" autocomplete="off"></div>
       <div class="bar"><select data-note-project><option value="">All projects</option>${projOptions(ui.notes.project, {none: '', closed: true})}</select></div>
@@ -41,6 +42,7 @@ function editorHtml(n) {
   if (!n) return `<div class="empty">Select a note on the left, or create a new one.<br><br>
     Tip: write meeting minutes here. Then select a line and turn it into a task, a commitment, or a RAID item.</div>`;
   return `<form data-form="note" data-id="${n.id}">
+    <button type="button" class="btn sm note-back" data-act="close-note">← All notes</button>
     <input class="ntitle" name="title" value="${esc(n.title)}" placeholder="Title (if empty, the first line is used)" autocomplete="off">
     <div class="nprops">
       <input type="date" name="noteDate" value="${esc(n.noteDate)}" title="Date">
@@ -48,7 +50,9 @@ function editorHtml(n) {
       <input name="tags" value="${esc(n.tags)}" placeholder="Tags, separated by commas" style="flex:1;min-width:160px">
       <label class="small"><input type="checkbox" name="pinned" ${n.pinned ? 'checked' : ''}> Pin to top</label>
     </div>
-    <textarea class="nbody" name="body" placeholder="Write your notes here…">${esc(n.body)}</textarea>
+    <div class="banner" id="note-conflict"${conflict.has(n.id) ? '' : ' hidden'}>Someone else changed this note after you opened it. Your latest changes are not saved.
+      <span class="sp"></span><button type="button" class="btn sm" data-act="reload-notes">Load the latest version</button></div>
+    <div class="nbody" id="note-doc"><div class="empty">Loading the editor…</div></div>
     <div class="ntools">
       <span class="small muted">Selected text or current line →</span>
       <button type="button" class="btn sm" data-act="note-to-task">Task</button>
@@ -61,42 +65,105 @@ function editorHtml(n) {
   </form>`;
 }
 
+/* ---------- block editor ---------- */
+let editorMod = null; // editor.js, once loaded
+let ed = null;        // the editor on screen
+let edNoteId = null;  // the note it shows
+let mountSeq = 0;
+
+/** Puts the block editor into the note form. main.js calls this after each render of the Notes page. */
+export async function mountNoteEditor() {
+  const seq = ++mountSeq;
+  destroyNoteEditor();
+  const host = $('#note-doc'), n = note(ui.notes.selectedId);
+  if (!host || !n) return;
+  try { editorMod ??= await import('./editor.js'); }
+  catch (err) { host.innerHTML = `<div class="empty">The editor could not load: ${esc(err.message)}</div>`; return; }
+  if (seq !== mountSeq || !host.isConnected) return; // another render came first
+  // Changes that are typed but not saved yet win over the stored copy.
+  const content = latest?.id === n.id ? latest.data.content : n.content;
+  host.innerHTML = '';
+  ed = editorMod.createNoteEditor({element: host, content, body: n.body, onChange: () => {
+    const f = host.closest('form');
+    if (f) noteEdited(f);
+  }});
+  edNoteId = n.id;
+}
+
+export function destroyNoteEditor() {
+  ed?.destroy();
+  ed = edNoteId = null;
+}
+
 /* ---------- autosave ---------- */
-let pending = null;
+// Saves run one after another, so each one sends the version returned by the one before.
+let queue = Promise.resolve();
+let pending = null;          // {snap, timer}: a save waiting for typing to stop
+let latest = null;           // the newest snapshot that is not saved yet
+const conflict = new Set();  // notes whose save was refused because someone else saved first
 
-function formData(f) {
-  return {projectId: f.projectId.value, title: f.title.value, body: f.body.value, tags: f.tags.value, noteDate: f.noteDate.value, pinned: f.pinned.checked};
+function snapshot(f) {
+  const n = note(f.dataset.id);
+  const data = {projectId: f.projectId.value, title: f.title.value, tags: f.tags.value, noteDate: f.noteDate.value, pinned: f.pinned.checked,
+    body: n?.body ?? '', content: n?.content || null};
+  if (ed && edNoteId === f.dataset.id) data.content = JSON.stringify(ed.getJSON());
+  return {id: f.dataset.id, data};
 }
 
-async function saveNow(f) {
+function setStatus(id, text) {
   const status = $('#note-status');
-  try {
-    await saveNote(f.dataset.id, formData(f));
-    if (status && f.isConnected) status.textContent = 'Saved';
-    const list = $('#note-list');
-    if (list) list.innerHTML = noteListHtml();
-  } catch (err) {
-    if (status && f.isConnected) status.textContent = 'Not saved';
-    toast(err.message, {error: true});
-  }
+  if (status && status.closest('form')?.dataset.id === id) status.textContent = text;
 }
 
-/** Called on every keystroke in the editor. Saves 0.7 s after typing stops. */
+function save(snap) {
+  queue = queue.then(async () => {
+    const n = note(snap.id);
+    if (!n || conflict.has(snap.id)) return;
+    try {
+      await saveNote(snap.id, {...snap.data, version: n.version});
+      if (latest === snap) latest = null;
+      setStatus(snap.id, latest ? 'Saving…' : 'Saved');
+      const list = $('#note-list');
+      if (list) list.innerHTML = noteListHtml();
+    } catch (err) {
+      setStatus(snap.id, 'Not saved');
+      if (err.status !== 409) return toast(err.message, {error: true});
+      conflict.add(snap.id);
+      const banner = $('#note-conflict');
+      if (banner && banner.closest('form')?.dataset.id === snap.id) banner.hidden = false;
+    }
+  });
+  return queue;
+}
+
+/** Called on every change in the note. Saves 0.7 s after typing stops. */
 export function noteEdited(f, immediate = false) {
+  const snap = snapshot(f);
+  latest = snap;
   clearTimeout(pending?.timer);
-  const status = $('#note-status');
-  if (status) status.textContent = 'Saving…';
-  if (immediate) { pending = null; return saveNow(f); }
-  pending = {form: f, timer: setTimeout(() => { pending = null; saveNow(f); }, 700)};
+  setStatus(snap.id, conflict.has(snap.id) ? 'Not saved' : 'Saving…');
+  if (immediate) { pending = null; return save(snap); }
+  pending = {snap, timer: setTimeout(() => { pending = null; save(snap); }, 700)};
 }
 
-/** Saves a pending change right away, for example before switching notes or pages. */
-export async function flushNote() {
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  const f = pending.form;
-  pending = null;
-  await saveNow(f);
+/** Saves a pending change right away, for example before switching notes or pages. Also waits for saves already running. */
+export function flushNote() {
+  if (pending) {
+    clearTimeout(pending.timer);
+    const {snap} = pending;
+    pending = null;
+    save(snap);
+  }
+  return queue;
+}
+
+/** After a refused save: drops the unsaved changes and loads the newest data from the server. */
+export async function reloadNotes() {
+  clearTimeout(pending?.timer);
+  pending = latest = null;
+  await queue;
+  conflict.clear();
+  await load();
 }
 
 /* ---------- actions ---------- */
@@ -128,17 +195,8 @@ export function noteSearchChanged(q) {
   }, 250);
 }
 
-/** The selected text in the editor, or the line under the cursor. List markers like "- " or "1. " are removed. */
+/** The selected text in the editor, or the block under the cursor. List markers like "- " or "1. " are removed. */
 export function editorSelection() {
-  const ta = $('#note-editor [name=body]');
-  if (!ta) return '';
-  const {value, selectionStart: s, selectionEnd: e} = ta;
-  let text;
-  if (s !== e) text = value.slice(s, e);
-  else {
-    const start = value.lastIndexOf('\n', s - 1) + 1;
-    const end = value.indexOf('\n', s);
-    text = value.slice(start, end < 0 ? value.length : end);
-  }
-  return text.trim().replace(/^([-*•]|\d+[.)]|\[[ xX]?\])\s+/, '').replace(/\s+/g, ' ').slice(0, 300);
+  if (!ed) return '';
+  return editorMod.selectedText(ed).trim().replace(/^([-*•]|\d+[.)]|\[[ xX]?\])\s+/, '').replace(/\s+/g, ' ').slice(0, 300);
 }

@@ -6,9 +6,10 @@ import { db, task, isDone, isOpen, firstOpen, firstDone } from './store.js';
 import { ui, app, isAdmin } from './state.js';
 import { views, boardBody, daySummary, exportCsv } from './views.js';
 import { openTask, newTask, closeDrawer, renderDrawer, refreshTimeline, autosaveTask, syncDrawerStatus } from './drawer.js';
-import { quickLogModal, editLogModal, commitModal, projectModal, milestoneModal, statusEditor } from './modals.js';
+import { quickLogModal, editLogModal, commitModal, projectModal, milestoneModal, teamModal, statusEditor } from './modals.js';
 import { toast, hideToast, closeModal, msOptions, taskOptions } from './components.js';
-import { notesView, noteListHtml, noteEdited, flushNote, openNote, createNote, noteSearchChanged, editorSelection } from './notes.js';
+import { notesView, noteListHtml, noteEdited, flushNote, openNote, createNote, noteSearchChanged, editorSelection, mountNoteEditor, destroyNoteEditor,
+  reloadNotes } from './notes.js';
 import { raidView, raidModal, raidTypeChanged } from './raid.js';
 import { buildSample } from './sample.js';
 import { usersView, userModal, resetPasswordModal, accountModal, generatePassword } from './users.js';
@@ -41,12 +42,19 @@ function render() {
   document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.view === (ui.view === 'project' ? 'projects' : ui.view)));
   $('#nav-users').hidden = !isAdmin();
   $('#main').innerHTML = updateBanner() + views[ui.view]();
+  if (ui.view === 'notes') mountNoteEditor(); else destroyNoteEditor();
   const td = today(), n = db.tasks.filter(t => isOpen(t) && t.due && t.due <= td).length;
-  const badge = $('#n-today');
-  badge.hidden = !n;
-  badge.textContent = n;
+  for (const badge of [$('#n-today'), $('#n-today-top')]) {
+    badge.hidden = !n;
+    badge.textContent = n;
+  }
+  const current = $('.nav.on');
+  $('#topbar-title').textContent = current ? current.firstChild.textContent.trim() : 'PMate';
   renderSideFoot();
 }
+
+/** Phones: the menu slides in from the left. */
+const setMenu = open => document.body.classList.toggle('menu-open', open);
 Object.assign(app, {render, renderDrawer, refreshTimeline});
 
 function renderSideFoot() {
@@ -119,14 +127,14 @@ const forms = {
   /* users and account */
   async 'new-user'(f, d) {
     await api.post('/api/users', {userName: d.get('userName'), displayName: d.get('displayName'), role: d.get('role'), password: d.get('password')});
-    await loadUsers();
+    await Promise.all([loadUsers(), store.load()]); // store.load refreshes the people list used for teams and owners
     closeModal();
     render();
     toast(`User added. Give them the user name "${d.get('userName')}" and the temporary password.`);
   },
   async 'edit-user'(f, d) {
     await api.put(`/api/users/${f.dataset.id}`, {displayName: d.get('displayName'), role: d.get('role'), isActive: d.get('isActive') === 'on'});
-    await loadUsers();
+    await Promise.all([loadUsers(), store.load()]); // a new name also changes task owners
     closeModal();
     render();
     toast('User saved');
@@ -139,10 +147,20 @@ const forms = {
     toast('Password reset. Give the user the temporary password.');
   },
   async profile(f, d) {
+    const oldName = ui.me.displayName;
     ui.me = await api.put('/api/auth/profile', {displayName: d.get('displayName')});
+    // The server moved your tasks to the new name. Reload so owners and "My tasks" match.
+    if (ui.board.owner === oldName) ui.board.owner = ui.me.displayName;
+    await store.load();
     closeModal();
     render();
     toast('Name saved');
+  },
+  async team(f, d) {
+    await store.setTeam(f.dataset.id, d.getAll('userId'));
+    closeModal();
+    render();
+    toast('Team saved');
   },
   async 'change-password'(f, d) {
     if (d.get('newPassword') !== d.get('confirm')) throw new Error('The two new passwords do not match.');
@@ -195,7 +213,10 @@ async function toggleDone(t) {
 }
 
 const actions = {
+  menu: () => setMenu(!document.body.classList.contains('menu-open')),
+  'menu-close': () => setMenu(false),
   nav: async a => {
+    setMenu(false);
     await flushNote();
     ui.view = a.dataset.view;
     closeModal();
@@ -206,7 +227,7 @@ const actions = {
     if (ui.view === 'settings') { await Promise.all([loadSystem(), loadTrash()]); render(); }
     if (ui.view === 'users') { await loadUsers(); render(); }
   },
-  account: () => accountModal(),
+  account: () => { setMenu(false); accountModal(); },
   logout: async () => {
     await flushNote();
     await api.post('/api/auth/logout');
@@ -281,6 +302,7 @@ const actions = {
   },
   'toggle-closed': () => { ui.showClosed = !ui.showClosed; render(); },
   'new-milestone': a => milestoneModal(null, a.dataset.project),
+  'edit-team': a => teamModal(a.dataset.id),
   'edit-milestone': a => milestoneModal(a.dataset.id),
   'del-milestone': async a => {
     const r = await store.deleteMilestone(a.dataset.id);
@@ -293,9 +315,12 @@ const actions = {
   'new-note': async a => {
     await createNote(a.dataset.project);
     render();
-    setTimeout(() => $('#note-editor [name=body]')?.focus());
+    setTimeout(() => $('#note-editor [name=title]')?.focus());
   },
-  'open-note': async a => { await openNote(a.dataset.id); render(); },
+  'open-note': async a => { await openNote(a.dataset.id); render(); window.scrollTo(0, 0); },
+  // Phones show either the list or one note. This goes back to the list.
+  'close-note': async () => { await flushNote(); ui.notes.selectedId = null; render(); },
+  'reload-notes': async () => { await reloadNotes(); render(); },
   'notes-for-project': a => { ui.notes.project = a.dataset.id; ui.notes.q = ''; ui.notes.hits = null; ui.view = 'notes'; render(); },
   'del-note': async a => {
     await flushNote();
@@ -452,6 +477,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target, form = el.form;
   if (el.dataset.filter !== undefined && el.tagName === 'SELECT') { ui.board[el.dataset.filter] = el.value; $('#board-body').innerHTML = boardBody(); }
+  if (el.dataset.actChange === 'ts-user') { ui.tsUser = el.value; render(); }
   if (el.dataset.sfield === 'color') statusEditor.set(+el.dataset.i, 'color', el.value);
   if (el.dataset.sfield === 'isDone') statusEditor.set(+el.dataset.i, 'isDone', el.checked);
   if (el.hasAttribute('data-task-target')) form.taskId.innerHTML = taskOptions(el.value, '');
@@ -502,8 +528,10 @@ document.addEventListener('drop', e => {
 });
 
 document.addEventListener('keydown', e => {
-  const tag = (e.target.tagName || '').toLowerCase(), typing = ['input', 'textarea', 'select'].includes(tag);
+  const tag = (e.target.tagName || '').toLowerCase(), typing = ['input', 'textarea', 'select'].includes(tag) || e.target.isContentEditable;
+  if (e.defaultPrevented) return; // handled already, for example Esc closing the "/" menu in a note
   if (e.key === 'Escape') {
+    if (document.body.classList.contains('menu-open')) return setMenu(false);
     if (!$('#modal').hidden) return closeAnyModal();
     if (typing && e.target.closest('#note-editor')) return e.target.blur();
     if (typing && e.target.closest('#drawer')) return e.target.blur();
@@ -531,6 +559,7 @@ async function loadApp() {
 run(async () => {
   // Not signed in: api.js sends the browser to the login page.
   ui.me = await api.get('/api/auth/me');
+  ui.board.owner = ui.me.displayName; // the task board starts with "My tasks"
   if (ui.me.mustChangePassword) {
     $('#main').innerHTML = '';
     renderSideFoot();

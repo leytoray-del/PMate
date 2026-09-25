@@ -81,6 +81,8 @@ public class Project : ISoftDelete
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public string? CreatedBy { get; set; }
+    /// <summary>User id of the creator. Decides who sees items that are not in a project, and whose hours they are.</summary>
+    public string? CreatedById { get; set; }
     [JsonIgnore] public DateTime? DeletedAt { get; set; }
     [JsonIgnore] public string? DeleteBatchId { get; set; }
 }
@@ -117,6 +119,8 @@ public class TaskItem : ISoftDelete
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DoneAt { get; set; }
     public string? CreatedBy { get; set; }
+    /// <summary>User id of the creator. Decides who sees items that are not in a project, and whose hours they are.</summary>
+    public string? CreatedById { get; set; }
     [JsonIgnore] public DateTime? DeletedAt { get; set; }
     [JsonIgnore] public string? DeleteBatchId { get; set; }
 }
@@ -142,6 +146,8 @@ public class TaskUpdate : ISoftDelete
     public bool IsSample { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? CreatedBy { get; set; }
+    /// <summary>User id of the creator. Decides who sees items that are not in a project, and whose hours they are.</summary>
+    public string? CreatedById { get; set; }
     [JsonIgnore] public DateTime? DeletedAt { get; set; }
     [JsonIgnore] public string? DeleteBatchId { get; set; }
 }
@@ -152,7 +158,12 @@ public class Note : ISoftDelete
     public string Id { get; set; } = Ids.New();
     public string? ProjectId { get; set; }
     public string Title { get; set; } = "";
+    /// <summary>Plain text of the note, for search, titles and previews. Made from <see cref="Content"/> when the note has it.</summary>
     public string Body { get; set; } = "";
+    /// <summary>The page in the block editor's JSON format (Tiptap). Null for notes written before the block editor.</summary>
+    public string? Content { get; set; }
+    /// <summary>Goes up by one on every save. A save based on an older version is refused, so one person cannot overwrite another's changes.</summary>
+    public int Version { get; set; }
     /// <summary>Comma-separated.</summary>
     public string? Tags { get; set; }
     public DateOnly NoteDate { get; set; }
@@ -161,6 +172,8 @@ public class Note : ISoftDelete
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public string? CreatedBy { get; set; }
+    /// <summary>User id of the creator. Decides who sees items that are not in a project, and whose hours they are.</summary>
+    public string? CreatedById { get; set; }
     [JsonIgnore] public DateTime? DeletedAt { get; set; }
     [JsonIgnore] public string? DeleteBatchId { get; set; }
 }
@@ -188,6 +201,8 @@ public class RaidItem : ISoftDelete
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ClosedAt { get; set; }
     public string? CreatedBy { get; set; }
+    /// <summary>User id of the creator. Decides who sees items that are not in a project, and whose hours they are.</summary>
+    public string? CreatedById { get; set; }
     [JsonIgnore] public DateTime? DeletedAt { get; set; }
     [JsonIgnore] public string? DeleteBatchId { get; set; }
 }
@@ -200,6 +215,16 @@ public class DeleteBatch
     public string Label { get; set; } = "";
     public int ItemCount { get; set; }
     public DateTime DeletedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Members see and restore only their own deletes. Admins see all.</summary>
+    public string? DeletedById { get; set; }
+}
+
+/// <summary>A user on a project's team. Members see only the projects they are on. Admins see all projects.</summary>
+public class ProjectMember
+{
+    public string ProjectId { get; set; } = "";
+    public string UserId { get; set; } = "";
+    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
 }
 
 public static class Roles

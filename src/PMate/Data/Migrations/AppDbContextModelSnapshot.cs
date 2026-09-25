@@ -50,6 +50,9 @@ namespace PMate.Data.Migrations
                     b.Property<DateTime>("DeletedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DeletedById")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("ItemCount")
                         .HasColumnType("INTEGER");
 
@@ -123,10 +126,16 @@ namespace PMate.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Content")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedById")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeleteBatchId")
@@ -158,6 +167,9 @@ namespace PMate.Data.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DeleteBatchId");
@@ -185,6 +197,9 @@ namespace PMate.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedById")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeleteBatchId")
@@ -226,6 +241,24 @@ namespace PMate.Data.Migrations
                     b.ToTable("Projects");
                 });
 
+            modelBuilder.Entity("PMate.Domain.ProjectMember", b =>
+                {
+                    b.Property<string>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ProjectMembers");
+                });
+
             modelBuilder.Entity("PMate.Domain.RaidItem", b =>
                 {
                     b.Property<string>("Id")
@@ -238,6 +271,9 @@ namespace PMate.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedById")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeleteBatchId")
@@ -324,6 +360,9 @@ namespace PMate.Data.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CreatedById")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DeleteBatchId")
                         .HasColumnType("TEXT");
 
@@ -397,6 +436,9 @@ namespace PMate.Data.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CreatedById")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("TEXT");
 
@@ -442,6 +484,8 @@ namespace PMate.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedById");
 
                     b.HasIndex("Date");
 

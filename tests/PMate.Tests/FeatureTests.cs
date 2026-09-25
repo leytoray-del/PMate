@@ -231,6 +231,42 @@ public sealed class FeatureTests : IAsyncLifetime
         Assert.Equal("uat, vendor, 风险", n.Tags);
     }
 
+    [Fact]
+    public async Task Block_editor_pages_are_searched_by_their_text_not_their_json()
+    {
+        const string page = """
+            {"type":"doc","content":[
+              {"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Cut-over plan"}]},
+              {"type":"panel","attrs":{"kind":"warning"},"content":[{"type":"paragraph","content":[{"type":"text","text":"Freeze "},{"type":"text","marks":[{"type":"bold"}],"text":"deployments"}]}]},
+              {"type":"codeBlock","attrs":{"language":"sql"},"content":[{"type":"text","text":"SELECT 1;\nSELECT 2;"}]}]}
+            """;
+        var n = await Notes.SaveAsync(null, new NoteInput(null, "", null, null, null, false, page));
+
+        Assert.Equal("Cut-over plan\nFreeze deployments\nSELECT 1;\nSELECT 2;", n.Body);
+        Assert.Equal("Cut-over plan", NoteService.DisplayTitle(n));
+        Assert.Single(await Notes.SearchAsync("deployments", null));
+        Assert.Empty(await Notes.SearchAsync("paragraph", null)); // JSON keys are not indexed
+    }
+
+    [Fact]
+    public async Task Note_content_that_is_not_a_page_is_refused()
+    {
+        await Assert.ThrowsAsync<AppException>(() => Notes.SaveAsync(null, new NoteInput(null, "", null, null, null, false, "not json")));
+        await Assert.ThrowsAsync<AppException>(() => Notes.SaveAsync(null, new NoteInput(null, "", null, null, null, false, """{"type":"table"}""")));
+    }
+
+    [Fact]
+    public async Task A_save_based_on_an_old_version_is_refused()
+    {
+        var n = await Notes.SaveAsync(null, new NoteInput(null, "Minutes", "v1", null, null, false));
+        var opened = n.Version;
+        await Notes.SaveAsync(n.Id, new NoteInput(null, "Minutes", "Ann's change", null, null, false, Version: opened));
+
+        var ex = await Assert.ThrowsAsync<AppException>(() => Notes.SaveAsync(n.Id, new NoteInput(null, "Minutes", "Ben's change", null, null, false, Version: opened)));
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal("Ann's change", (await _db.Notes.FindAsync(n.Id))!.Body);
+    }
+
     /* ---------- RAID ---------- */
 
     [Fact]

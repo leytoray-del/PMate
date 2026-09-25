@@ -32,7 +32,7 @@ async function request(method, url, body, {raw = false} = {}) {
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try { const j = await res.json(); msg = j.error || j.title || msg; } catch {}
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), {status: res.status});
   }
   if (res.status === 204 || res.status === 202) return null;
   return (res.headers.get('content-type') || '').includes('json') ? res.json() : res.text();

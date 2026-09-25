@@ -9,6 +9,12 @@
 </head>
 <body>
 <div class="app">
+  <!-- Phones only: the menu is hidden behind this bar and slides in from the left. -->
+  <header class="topbar">
+    <button class="btn icon menu-btn" data-act="menu" aria-label="Menu">☰<span class="n" id="n-today-top" hidden></span></button>
+    <span class="topbar-title" id="topbar-title">PMate</span>
+  </header>
+  <div class="side-backdrop" data-act="menu-close"></div>
   <aside class="side">
     <div class="brand">PMate</div>
     <button class="nav" data-act="nav" data-view="today">Today<span class="n" id="n-today" hidden></span></button>

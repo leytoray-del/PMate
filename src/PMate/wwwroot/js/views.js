@@ -1,6 +1,6 @@
 // The main pages. Each view returns an HTML string for <main>.
 import { esc, today, parse, addDays, dayDiff, fmtMD, fmtDate, fmtFull, fmtH, round2, plural, by, download, WD, LOGTYPE, LOGCOLOR, PSTATUS, MSTATUS } from './util.js';
-import { db, proj, task, st, statuses, isDone, isOpen, isActivity, recentDone, firstOpen, projLabel, owners, openCommitCount } from './store.js';
+import { db, proj, task, st, statuses, isDone, isOpen, isActivity, recentDone, firstOpen, projLabel, owners, openCommitCount, person, team } from './store.js';
 import { ui, isAdmin } from './state.js';
 import { statusChip, dueInfo, taskMeta, taskList, sortTasks, commitList, logList, projOptions, opts, ownerList } from './components.js';
 import { raidTable, raidAttention, sortRaid } from './raid.js';
@@ -17,7 +17,7 @@ views.today = () => {
   const soon = sortTasks(open.filter(t => t.due > td && t.due <= addDays(td, 7)));
   const active = sortTasks(open.filter(t => t.status !== firstOpen()?.id && !(t.due && t.due <= addDays(td, 7))));
   const commits = db.updates.filter(u => u.type === 'commit' && !u.commitDone).sort(by(u => u.commitDue || '9999'));
-  const todayLogs = db.updates.filter(u => u.date === td && isActivity(u));
+  const todayLogs = db.updates.filter(u => u.date === td && isActivity(u) && u.createdById === ui.me?.id);
   const hours = todayLogs.reduce((s, u) => s + (+u.hours || 0), 0);
   return `
   <div class="head"><h1>Today · ${fmtFull(td)}</h1><button class="btn primary" data-act="new-task">+ New task</button></div>
@@ -85,18 +85,28 @@ views.board = () => {
   <div class="bar">
     <input data-filter="q" placeholder="Search tasks and records" value="${esc(b.q)}" style="width:220px">
     <select data-filter="project"><option value="">All projects</option><option value="_none" ${b.project === '_none' ? 'selected' : ''}>No project</option>${projOptions(b.project, {none: '', closed: true})}</select>
-    <select data-filter="owner"><option value="">All owners</option>${owners().map(o => `<option ${o === b.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <select data-filter="owner" title="Whose tasks">${ownerFilterOptions(b.owner)}</select>
     <select data-filter="due">${opts({'': 'Any due date', overdue: 'Overdue', today: 'Due today', week: 'Due within 7 days', nodue: 'No due date'}, b.due)}</select>
     <label class="small"><input type="checkbox" data-filter="showDone" ${b.showDone ? 'checked' : ''}> Show all done tasks</label>
   </div>
   <div id="board-body">${boardBody()}</div>`;
 };
 
+/** "My tasks" first (the default), then all owners, no owner, and everyone else by name. */
+function ownerFilterOptions(sel) {
+  const me = ui.me?.displayName || '';
+  const opt = (v, label) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(label)}</option>`;
+  // People you can see, plus anyone who owns a task (for example a vendor). Not commitment names.
+  const names = [...new Set([...db.people.filter(p => p.isActive).map(p => p.displayName), ...db.tasks.map(t => t.owner)].filter(Boolean))].sort();
+  return opt(me, `My tasks (${me})`) + opt('', 'All owners') + opt('_none', 'No owner') +
+    `<optgroup label="Owner">${names.filter(o => o !== me).map(o => opt(o, o)).join('')}</optgroup>`;
+}
+
 function boardTasks() {
   const b = ui.board, td = today(), q = b.q.trim().toLowerCase();
   return db.tasks.filter(t => {
     if (b.project === '_none' ? t.projectId : b.project && t.projectId !== b.project) return false;
-    if (b.owner && t.owner !== b.owner) return false;
+    if (b.owner === '_none' ? t.owner : b.owner && t.owner !== b.owner) return false;
     if (b.due === 'overdue' && !(isOpen(t) && t.due && t.due < td)) return false;
     if (b.due === 'today' && !(isOpen(t) && t.due === td)) return false;
     if (b.due === 'week' && !(isOpen(t) && t.due && t.due <= addDays(td, 7))) return false;
@@ -191,6 +201,9 @@ views.project = () => {
     <b>Period:</b> ${p.start ? fmtMD(p.start) : '?'} – ${p.end ? fmtFull(p.end) : '?'}${left !== null && p.status !== 'closed' ? ` (${left >= 0 ? `${plural(left, 'day')} left` : `${plural(-left, 'day')} over`})` : ''} &nbsp;
     <b>Total hours:</b> ${fmtH(hours)}
     ${p.description ? `<div class="muted" style="margin-top:6px;white-space:pre-wrap">${esc(p.description)}</div>` : ''}
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>Team:</b>
+      ${team(p.id).map(x => `<span class="chip ${x.id === ui.me?.id ? 'cc c-blue' : ''}">${esc(x.displayName)}${x.isActive ? '' : ' (disabled)'}</span>`).join('') || '<span class="muted">Nobody yet. Only admins can see this project.</span>'}
+      ${isAdmin() ? `<button class="btn sm" data-act="edit-team" data-id="${p.id}">Manage team</button>` : ''}</div>
   </div>
   <div class="card"><h2>Plan · Milestones <span class="r"><button class="btn sm" data-act="new-milestone" data-project="${p.id}">+ Milestone</button></span></h2>
     ${mss.length ? `<table><thead><tr><th>Milestone</th><th>Planned</th><th>Actual</th><th>Status</th><th>Variance</th><th class="num">Tasks</th></tr></thead><tbody>
@@ -229,12 +242,15 @@ views.project = () => {
 
 /* ---------- Timesheet ---------- */
 const weekDays = () => [...Array(7)].map((_, i) => addDays(ui.tsWeek, i));
+// The timesheet shows one person's records: yourself, or (admins only) someone else.
+const tsUserId = () => (isAdmin() && ui.tsUser) || ui.me?.id;
+const ofTsUser = u => u.createdById === tsUserId();
 
 views.timesheet = () => {
   const days = weekDays();
   if (!days.includes(ui.tsDay)) ui.tsDay = days.includes(today()) ? today() : days[0];
   const rows = {};
-  for (const u of db.updates.filter(u => +u.hours > 0 && u.date >= days[0] && u.date <= days[6])) {
+  for (const u of db.updates.filter(u => +u.hours > 0 && u.date >= days[0] && u.date <= days[6] && ofTsUser(u))) {
     const k = u.projectId || '';
     rows[k] = rows[k] || {};
     rows[k][u.date] = (rows[k][u.date] || 0) + +u.hours;
@@ -243,8 +259,11 @@ views.timesheet = () => {
   const colTotal = d => keys.reduce((s, k) => s + (rows[k][d] || 0), 0);
   const weekTotal = days.reduce((s, d) => s + colTotal(d), 0);
   const std = +db.settings.hoursPerDay || 8;
-  const dayLogs = db.updates.filter(u => u.date === ui.tsDay && isActivity(u));
-  return `<div class="head"><h1>Timesheet</h1>
+  const dayLogs = db.updates.filter(u => u.date === ui.tsDay && isActivity(u) && ofTsUser(u));
+  const other = tsUserId() !== ui.me?.id;
+  return `<div class="head"><h1>Timesheet${other ? ` · ${esc(person(tsUserId())?.displayName || '')}` : ''}</h1>
+    ${isAdmin() ? `<select data-act-change="ts-user" title="Whose timesheet">${db.people.map(p =>
+      `<option value="${p.id}" ${p.id === tsUserId() ? 'selected' : ''}>${esc(p.displayName)}${p.id === ui.me?.id ? ' (me)' : ''}</option>`).join('')}</select>` : ''}
     <button class="btn" data-act="ts-week" data-n="-7">◀ Previous</button>
     <button class="btn" data-act="ts-week" data-n="0">This week</button>
     <button class="btn" data-act="ts-week" data-n="7">Next ▶</button>
@@ -261,7 +280,7 @@ views.timesheet = () => {
     <div class="small muted" style="margin-top:6px">Workdays with less than ${std}h are shown in orange.</div>
   </div>
   <div class="grid g2">
-    <div class="card"><h2>Records for ${fmtDate(ui.tsDay)} <span class="r"><button class="btn sm primary" data-act="quick-log" data-d="${ui.tsDay}">+ Log time</button></span></h2>${logList(dayLogs)}</div>
+    <div class="card"><h2>Records for ${fmtDate(ui.tsDay)} <span class="r">${other ? '' : `<button class="btn sm primary" data-act="quick-log" data-d="${ui.tsDay}">+ Log time</button>`}</span></h2>${logList(dayLogs)}</div>
     <div class="card"><h2>Daily summary <span class="r"><button class="btn sm primary" data-act="copy-summary">Copy</button></span></h2>
       <textarea class="summary" id="summary">${esc(daySummary(ui.tsDay))}</textarea>
       <div class="small muted">You can edit the text before copying.</div></div>
@@ -269,7 +288,7 @@ views.timesheet = () => {
 };
 
 export function daySummary(date) {
-  const logs = db.updates.filter(u => u.date === date && isActivity(u)).sort(by(u => u.createdAt || 0));
+  const logs = db.updates.filter(u => u.date === date && isActivity(u) && ofTsUser(u)).sort(by(u => u.createdAt || 0));
   if (!logs.length) return `${fmtFull(date)}\nNo records.`;
   const total = logs.reduce((s, u) => s + (+u.hours || 0), 0);
   const groups = {};
@@ -289,14 +308,15 @@ export function daySummary(date) {
 
 export function exportCsv() {
   const days = weekDays();
-  const logs = db.updates.filter(u => u.date >= days[0] && u.date <= days[6] && isActivity(u)).sort(by(u => u.date));
+  const logs = db.updates.filter(u => u.date >= days[0] && u.date <= days[6] && isActivity(u) && ofTsUser(u)).sort(by(u => u.date));
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [['Date', 'Weekday', 'Project Code', 'Project', 'Task', 'Type', 'Hours', 'Content'].join(',')];
   for (const u of logs) {
     const p = proj(u.projectId), t = task(u.taskId);
     lines.push([u.date, WD[parse(u.date).getDay()], p?.code, p?.name, t?.title, LOGTYPE[u.type], u.hours || '', u.text].map(q).join(','));
   }
-  download(`timesheet-${days[0]}.csv`, '\ufeff' + lines.join('\r\n'), 'text/csv');
+  const who = (person(tsUserId())?.displayName || 'me').replace(/[^\w.-]+/g, '-');
+  download(`timesheet-${who}-${days[0]}.csv`, '\ufeff' + lines.join('\r\n'), 'text/csv');
 }
 
 /* ---------- Settings ---------- */

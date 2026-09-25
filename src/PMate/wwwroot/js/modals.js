@@ -1,7 +1,7 @@
 // Centered dialogs: log time, edit record, commitment, project, milestone, board columns.
 import { esc, today, plural, COLORS, LOGTYPE, PSTATUS, MSTATUS } from './util.js';
-import { db, proj, ms, task, statuses } from './store.js';
-import { ui } from './state.js';
+import { db, proj, ms, task, statuses, team } from './store.js';
+import { ui, isAdmin } from './state.js';
 import { openModal, projOptions, taskOptions, opts, ownerList } from './components.js';
 
 /** Edit an existing timeline record. The task it belongs to cannot change. */
@@ -62,7 +62,7 @@ export function projectModal(id) {
     <label>Planned end date<input type="date" name="end" value="${esc(p.end)}"></label>
     <label>Status<select name="status">${opts(PSTATUS, p.status)}</select></label>
     <label class="full">Description (goals, scope, stakeholders)<textarea name="description" rows="3">${esc(p.description)}</textarea></label>
-  </div><div class="actions">${id ? `<button type="button" class="btn danger l" data-act="del-project" data-id="${p.id}">Delete project</button>` : ''}
+  </div><div class="actions">${id && isAdmin() ? `<button type="button" class="btn danger l" data-act="del-project" data-id="${p.id}">Delete project</button>` : ''}
     <button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save</button></div></form>`);
 }
 
@@ -77,6 +77,21 @@ export function milestoneModal(id, projectId) {
     <label class="full">Note<textarea name="note" rows="2">${esc(m.note)}</textarea></label>
   </div><div class="actions">${id ? `<button type="button" class="btn danger l" data-act="del-milestone" data-id="${m.id}">Delete</button>` : ''}
     <button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save</button></div></form>`);
+}
+
+/** Admins choose who is on the project team. Only team members (and admins) see the project. */
+export function teamModal(projectId) {
+  const p = proj(projectId), current = new Set(team(projectId).map(x => x.id));
+  const people = db.people.filter(x => x.isActive || current.has(x.id));
+  openModal(`<h2>Team for ${esc(p.name)}<button class="btn link x" data-act="close">Close ✕</button></h2>
+  <form data-form="team" data-id="${p.id}">
+    <p class="small muted">Team members see this project, with all its tasks, milestones, notes and RAID items. Admins always see all projects.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px">
+      ${people.map(x => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="userId" value="${x.id}" ${current.has(x.id) ? 'checked' : ''}>
+        ${esc(x.displayName)}${x.isActive ? '' : ' <span class="muted small">(disabled)</span>'}</label>`).join('')}
+    </div>
+    <div class="actions"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save team</button></div>
+  </form>`);
 }
 
 /* ---------- board columns editor ---------- */

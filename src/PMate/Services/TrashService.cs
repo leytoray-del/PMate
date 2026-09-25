@@ -7,14 +7,14 @@ namespace PMate.Services;
 public record DeleteResult(string UndoId, string Label);
 
 /// <summary>Soft delete with undo. See <see cref="ISoftDelete"/>.</summary>
-public class TrashService(AppDbContext db)
+public class TrashService(AppDbContext db, ICurrentUser? user = null)
 {
     public static readonly TimeSpan KeepFor = TimeSpan.FromDays(30);
 
     /// <summary>Marks the rows as deleted under one new batch. The caller still calls SaveChanges.</summary>
     public DeleteResult MarkDeleted(string kind, string label, IEnumerable<ISoftDelete> rows)
     {
-        var batch = new DeleteBatch { Kind = kind, Label = label };
+        var batch = new DeleteBatch { Kind = kind, Label = label, DeletedById = user?.Id };
         var count = 0;
         foreach (var r in rows.Where(r => r.DeletedAt is null))
         {

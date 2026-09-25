@@ -1,0 +1,25 @@
+{
+  "name": "pmate-editor-lib",
+  "private": true,
+  "description": "Builds the Tiptap editor library into one file for the notes page: src/PMate/wwwroot/js/vendor/tiptap.js",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --format=esm --minify --target=es2022 --legal-comments=eof --outfile=../../src/PMate/wwwroot/js/vendor/tiptap.js"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.3",
+    "@tiptap/extension-bubble-menu": "3.31.3",
+    "@tiptap/extension-code-block-lowlight": "3.31.3",
+    "@tiptap/extension-list": "3.31.3",
+    "@tiptap/extension-table": "3.31.3",
+    "@tiptap/extensions": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "@tiptap/suggestion": "3.31.3",
+    "highlight.js": "11.12.0",
+    "lowlight": "3.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

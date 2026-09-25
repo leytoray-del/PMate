@@ -50,6 +50,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
     await scope.ServiceProvider.GetRequiredService<StatusService>().EnsureDefaultsAsync();
     await scope.ServiceProvider.GetRequiredService<TrashService>().PurgeAsync();
+    await Ownership.AssignUnownedAsync(db);
     // Keeps the full-text index in step with the Notes table, even after a migration rebuilt that table.
     await db.Database.ExecuteSqlRawAsync("INSERT INTO NotesFts(NotesFts) VALUES('rebuild');");
 }

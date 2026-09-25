@@ -98,6 +98,7 @@ public partial class UserService(AppDbContext db, TimeProvider time)
             throw new AppException("PMate needs at least one active admin.");
 
         if (role != u.Role || input.IsActive != u.IsActive) u.SecurityStamp = Ids.New();
+        await RenameOwnerAsync(u.DisplayName, CleanDisplayName(input.DisplayName));
         u.DisplayName = CleanDisplayName(input.DisplayName);
         u.Role = role;
         u.IsActive = input.IsActive;
@@ -132,9 +133,23 @@ public partial class UserService(AppDbContext db, TimeProvider time)
     public async Task<User> UpdateProfileAsync(string id, string? displayName)
     {
         var u = await FindAsync(id) ?? throw new AppException("User not found.", 404);
+        await RenameOwnerAsync(u.DisplayName, CleanDisplayName(displayName));
         u.DisplayName = CleanDisplayName(displayName);
         await db.SaveChangesAsync();
         return u;
+    }
+
+    /// <summary>
+    /// Task owners, commitment owners and RAID owners are stored as names.
+    /// When a user's display name changes, move their items to the new name so "My tasks" still finds them.
+    /// </summary>
+    private async Task RenameOwnerAsync(string oldName, string newName)
+    {
+        if (oldName.Length == 0 || oldName == newName) return;
+        if (await db.Users.AnyAsync(x => x.DisplayName == newName)) throw new AppException("Another user already has this display name.");
+        await db.Tasks.IgnoreQueryFilters().Where(t => t.Owner == oldName).ExecuteUpdateAsync(s => s.SetProperty(t => t.Owner, newName));
+        await db.Updates.IgnoreQueryFilters().Where(x => x.Who == oldName).ExecuteUpdateAsync(s => s.SetProperty(x => x.Who, newName));
+        await db.RaidItems.IgnoreQueryFilters().Where(r => r.Owner == oldName).ExecuteUpdateAsync(s => s.SetProperty(r => r.Owner, newName));
     }
 
     private async Task<User> NewUserAsync(string? userName, string? displayName, string? role, string? password)
@@ -144,6 +159,9 @@ public partial class UserService(AppDbContext db, TimeProvider time)
             throw new AppException("User name must be 3–50 characters: letters, numbers, dot, dash, underscore or @.");
         var key = Normalize(name);
         if (await db.Users.AnyAsync(u => u.NormalizedUserName == key)) throw new AppException("This user name is already taken.");
+        // Task owners are matched by display name, so two users cannot share one.
+        var display = CleanDisplayName(displayName ?? name);
+        if (await db.Users.AnyAsync(u => u.DisplayName == display)) throw new AppException("Another user already has this display name.");
         var u = new User
         {
             UserName = name,

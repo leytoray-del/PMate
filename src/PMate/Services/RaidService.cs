@@ -11,7 +11,7 @@ public class RaidService(AppDbContext db, ICurrentUser user, TrashService trash)
 {
     public async Task<RaidItem> SaveAsync(string? id, RaidInput i)
     {
-        var r = id is null ? new RaidItem { CreatedBy = user.Name } : await db.RaidItems.FindAsync(id) ?? throw new AppException("RAID item not found.", 404);
+        var r = id is null ? new RaidItem { CreatedBy = user.Name, CreatedById = user.Id } : await db.RaidItems.FindAsync(id) ?? throw new AppException("RAID item not found.", 404);
         var projectId = Text.Clean(i.ProjectId) ?? throw new AppException("Please choose a project.");
         if (!await db.Projects.AnyAsync(p => p.Id == projectId)) throw new AppException("Project not found.");
         if (!RaidTypes.All.Contains(i.Type)) throw new AppException("Unknown RAID type.");

@@ -17,7 +17,7 @@ public class TaskService(AppDbContext db, ICurrentUser user, TrashService trash)
     public async Task<TaskItem> CreateAsync(TaskInput input)
     {
         var statuses = await Statuses();
-        var t = new TaskItem { CreatedBy = user.Name };
+        var t = new TaskItem { CreatedBy = user.Name, CreatedById = user.Id };
         await ApplyAsync(t, input, statuses, isNew: true);
         if (statuses.First(s => s.Id == t.Status).IsDone) t.DoneAt = DateTime.UtcNow;
         db.Tasks.Add(t);
@@ -44,7 +44,7 @@ public class TaskService(AppDbContext db, ICurrentUser user, TrashService trash)
             change = new TaskUpdate
             {
                 TaskId = t.Id, ProjectId = t.ProjectId, Date = Clock.Today, Type = UpdateTypes.StatusChange,
-                FromStatus = oldStatus, ToStatus = t.Status, FromName = from?.Name, ToName = to.Name, CreatedBy = user.Name,
+                FromStatus = oldStatus, ToStatus = t.Status, FromName = from?.Name, ToName = to.Name, CreatedBy = user.Name, CreatedById = user.Id,
             };
             db.Updates.Add(change);
         }
@@ -89,7 +89,7 @@ public class TaskService(AppDbContext db, ICurrentUser user, TrashService trash)
         {
             TaskId = taskId, ProjectId = projectId, Date = input.Date ?? Clock.Today, Type = input.Type!, Text = text,
             Hours = Math.Round(hours, 2), Who = isCommit ? Text.Clean(input.Who) : null, CommitDue = isCommit ? input.CommitDue : null,
-            CreatedBy = user.Name,
+            CreatedBy = user.Name, CreatedById = user.Id,
         };
         db.Updates.Add(u);
         await db.SaveChangesAsync();
