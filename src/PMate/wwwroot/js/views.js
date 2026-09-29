@@ -64,7 +64,7 @@ function welcome() {
       ${isAdmin() ? '<li>In <b>Users</b>, add your team members. In <b>Settings &amp; Data</b>, you can set a second backup folder, for example in OneDrive.</li>' : ''}
       <li>In <b>Projects</b>, create a project. Use the same project code as your timesheet.</li>
       <li>Add tasks to the project. Each time you work on a task, add a <b>Work log</b> with hours.</li>
-      <li>Open <b>Timesheet</b> to see daily and weekly hours. Copy the daily summary into your timesheet.</li>
+      <li>Open <b>Timesheet</b> to see daily and weekly hours. Copy each project's hours and content into your timesheet.</li>
     </ol>
     <p>Used the single-file version before? Export a backup there, then use <b>Settings &amp; Data → Restore from backup</b> here.</p>
     <div class="actions" style="justify-content:flex-start">
@@ -336,11 +336,9 @@ function dayGroups(date) {
 // One line of content per record, ready to paste into the GTS content box.
 const recordLine = u => {
   const t = task(u.taskId);
-  return `${u.type === 'work' ? '' : `[${LOGTYPE[u.type]}] `}${t ? t.title + ': ' : ''}${u.text.replace(/
-+/g, ' ')}`;
+  return `${u.type === 'work' ? '' : `[${LOGTYPE[u.type]}] `}${t ? t.title + ': ' : ''}${u.text.replace(/\n+/g, ' ')}`;
 };
-export const groupContent = (date, pid) => (dayGroups(date).find(g => g.pid === pid)?.list || []).map(recordLine).join('
-');
+export const groupContent = (date, pid) => (dayGroups(date).find(g => g.pid === pid)?.list || []).map(recordLine).join('\n');
 
 function dayDetail(date, other) {
   const groups = dayGroups(date);
@@ -367,16 +365,11 @@ function dayDetail(date, other) {
 
 export function daySummary(date) {
   const groups = dayGroups(date);
-  if (!groups.length) return `${fmtFull(date)}
-No records.`;
-  let out = `${fmtFull(date)} - Total ${fmtH(groups.reduce((s, g) => s + g.hours, 0))}
-`;
+  if (!groups.length) return `${fmtFull(date)}\nNo records.`;
+  let out = `${fmtFull(date)} - Total ${fmtH(groups.reduce((s, g) => s + g.hours, 0))}\n`;
   for (const g of groups) {
-    out += `
-[${g.pid ? projLabel(proj(g.pid)) : 'No project'}] ${g.hours ? fmtH(g.hours) : ''}
-`;
-    for (const u of g.list) out += `- ${recordLine(u)}${u.hours ? ` (${fmtH(+u.hours)})` : ''}
-`;
+    out += `\n[${g.pid ? projLabel(proj(g.pid)) : 'No project'}] ${g.hours ? fmtH(g.hours) : ''}\n`;
+    for (const u of g.list) out += `- ${recordLine(u)}${u.hours ? ` (${fmtH(+u.hours)})` : ''}\n`;
   }
   return out.trim();
 }
