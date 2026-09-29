@@ -17,8 +17,9 @@ export function buildSample(me) {
     const m = {id: id(), projectId: p.id, name, planDate: addDays(td, plan), actualDate: actual != null ? addDays(td, actual) : null, status, createdAt: iso(now), updatedAt: iso(now)};
     data.milestones.push(m); return m;
   };
-  const T = (p, m, title, owner, due, status, priority, age) => {
-    const t = {id: id(), projectId: p.id, milestoneId: m?.id ?? null, title, owner, due: due == null ? null : addDays(td, due), status, priority,
+  // tagId: one of the default tags. The import drops it if an admin removed that tag.
+  const T = (p, m, title, owner, due, status, priority, age, tagId = null) => {
+    const t = {id: id(), projectId: p.id, milestoneId: m?.id ?? null, title, owner, due: due == null ? null : addDays(td, due), status, priority, tagId,
       isSample: true, createdAt: iso(now - age * 864e5), updatedAt: iso(now), doneAt: status === 'done' ? iso(now - 20 * 864e5) : null};
     data.tasks.push(t); return t;
   };
@@ -33,14 +34,14 @@ export function buildSample(me) {
   const m5 = M(p2, 'New site confirmed', -3, 'doing');
   M(p2, 'Fit-out complete', 30, 'planned');
 
-  const t1 = T(p1, m1, 'Send requirements document for business sign-off', me, -20, 'done', 'high', 30);
-  const t2 = T(p1, m2, 'Follow up quotation module progress', 'Alice', 2, 'doing', 'high', 9);
-  const t3 = T(p1, m2, 'Confirm data migration approach', 'Ben', -2, 'waiting', 'high', 7);
-  T(p1, m3, 'Prepare UAT test cases', 'Chen Wei', 12, 'todo', 'medium', 3);
-  const t5 = T(p1, null, 'Update weekly status report', me, 0, 'todo', 'medium', 2);
-  const t6 = T(p2, m5, 'Confirm lease terms with landlord', me, 1, 'doing', 'high', 10);
-  const t7 = T(p2, null, 'Collect seating needs from each team', 'Priya', 5, 'todo', 'low', 4);
-  T(p2, null, 'Compare IT cabling quotes', 'Ben', 9, 'todo', 'medium', 1);
+  const t1 = T(p1, m1, 'Send requirements document for business sign-off', me, -20, 'done', 'high', 30, 'approve');
+  const t2 = T(p1, m2, 'Follow up quotation module progress', 'Alice', 2, 'doing', 'high', 9, 'followup');
+  const t3 = T(p1, m2, 'Confirm data migration approach', 'Ben', -2, 'waiting', 'high', 7, 'confirm');
+  T(p1, m3, 'Prepare UAT test cases', 'Chen Wei', 12, 'todo', 'medium', 3, 'test');
+  const t5 = T(p1, null, 'Update weekly status report', me, 0, 'todo', 'medium', 2, 'report');
+  const t6 = T(p2, m5, 'Confirm lease terms with landlord', me, 1, 'doing', 'high', 10, 'confirm');
+  const t7 = T(p2, null, 'Collect seating needs from each team', 'Priya', 5, 'todo', 'low', 4, 'onsite');
+  T(p2, null, 'Compare IT cabling quotes', 'Ben', 9, 'todo', 'medium', 1, 'review');
 
   S(t1, p1, -24, 'todo', 'doing'); L(t1, p1, -24, 'work', 'Drafted requirements document.', 3);
   S(t1, p1, -21, 'doing', 'done'); L(t1, p1, -21, 'decision', 'Business agreed: reports module moves to phase 2.', 0);

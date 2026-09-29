@@ -1,6 +1,6 @@
-// Centered dialogs: log time, edit record, commitment, project, milestone, board columns.
+// Centered dialogs: log time, edit record, commitment, project, milestone, board columns, task tags.
 import { esc, today, plural, COLORS, LOGTYPE, PSTATUS, MSTATUS } from './util.js';
-import { db, proj, ms, task, statuses, team } from './store.js';
+import { db, proj, ms, task, statuses, tags, projColor, team } from './store.js';
 import { ui, isAdmin } from './state.js';
 import { openModal, projOptions, taskOptions, opts, ownerList } from './components.js';
 
@@ -52,7 +52,8 @@ export function quickLogModal(date) {
 }
 
 export function projectModal(id) {
-  const p = id ? proj(id) : {id: '', name: '', code: '', client: '', status: 'active', start: today(), end: '', description: ''};
+  const p = id ? proj(id) : {id: '', name: '', code: '', color: '', client: '', status: 'active', start: today(), end: '', description: ''};
+  const auto = id ? projColor({...p, color: ''}) : '';
   openModal(`<h2>${id ? 'Edit project' : 'New project'}<button class="btn link x" data-act="close">Close ✕</button></h2>
   <form data-form="project" data-id="${p.id}"><div class="form">
     <label class="full">Project name<input name="name" required value="${esc(p.name)}" autofocus></label>
@@ -61,6 +62,8 @@ export function projectModal(id) {
     <label>Start date<input type="date" name="start" value="${esc(p.start)}"></label>
     <label>Planned end date<input type="date" name="end" value="${esc(p.end)}"></label>
     <label>Status<select name="status">${opts(PSTATUS, p.status)}</select></label>
+    <label>Color (on board cards)<select name="color" class="c-${p.color || auto || 'gray'}" data-color-preview="${auto || 'gray'}">
+      <option value="">● Automatic${auto ? ` (${auto})` : ''}</option>${COLORS.map(c => `<option value="${c}" ${c === p.color ? 'selected' : ''}>● ${c}</option>`).join('')}</select></label>
     <label class="full">Description (goals, scope, stakeholders)<textarea name="description" rows="3">${esc(p.description)}</textarea></label>
   </div><div class="actions">${id && isAdmin() ? `<button type="button" class="btn danger l" data-act="del-project" data-id="${p.id}">Delete project</button>` : ''}
     <button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Save</button></div></form>`);
@@ -132,6 +135,51 @@ export const statusEditor = {
     if (d.some(s => !s.name.trim())) return 'Every column needs a name.';
     if (!d.some(s => s.isDone)) return 'Mark at least one column as Done.';
     if (!d.some(s => !s.isDone)) return 'You need at least one column that is not Done.';
+    return null;
+  },
+};
+
+/* ---------- task tags editor ---------- */
+// Same pattern as the columns editor: edit a draft, then save the whole list.
+export const tagEditor = {
+  draft: null,
+  start() { this.draft = tags().map(({id, name, color}) => ({id, name, color})); this.render(); },
+  render() {
+    const draft = this.draft;
+    const count = id => db.tasks.filter(t => t.tagId === id).length;
+    const kept = new Set(draft.map(g => g.id));
+    const lost = tags().filter(g => !kept.has(g.id) && count(g.id));
+    openModal(`<h2>Customize task tags<button class="btn link x" data-act="close">Close ✕</button></h2>
+    <p class="small muted">A tag says what kind of work a task is. It shows on the board card with its color. Keep names short, so they are easy to spot.</p>
+    <div>${draft.map((g, i) => `<div class="srow grow">
+      <select data-gfield="color" data-i="${i}" class="c-${g.color}">${COLORS.map(c => `<option value="${c}" ${c === g.color ? 'selected' : ''}>● ${c}</option>`).join('')}</select>
+      <input data-gfield="name" data-i="${i}" value="${esc(g.name)}" placeholder="Tag name" maxlength="20">
+      <span class="chip cc c-${g.color}">${esc(g.name) || '&nbsp;'}</span>
+      <span class="small muted">${g.id ? plural(count(g.id), 'task') : 'new'}</span>
+      <span class="ctl"><button class="btn sm" data-act="g-move" data-i="${i}" data-d="-1" ${i ? '' : 'disabled'}>↑</button><button class="btn sm" data-act="g-move" data-i="${i}" data-d="1" ${i < draft.length - 1 ? '' : 'disabled'}>↓</button>
+        <button class="btn sm danger" data-act="g-del" data-i="${i}">Remove</button></span>
+    </div>`).join('') || '<div class="empty">No tags. Tasks can still be created without a tag.</div>'}</div>
+    <div style="margin-top:10px"><button class="btn sm" data-act="g-add">+ Add tag</button></div>
+    ${lost.length ? `<p class="small" style="color:var(--warn)">Tasks with removed tags (${lost.map(g => esc(g.name)).join(', ')}) will have no tag.</p>` : ''}
+    <div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="g-save">Save</button></div>`);
+  },
+  move(i, d) { const j = i + d; [this.draft[i], this.draft[j]] = [this.draft[j], this.draft[i]]; this.render(); },
+  remove(i) { this.draft.splice(i, 1); this.render(); },
+  add() {
+    const used = new Set(this.draft.map(g => g.color));
+    this.draft.push({id: '', name: 'New tag', color: COLORS.find(c => !used.has(c)) || 'gray'});
+    this.render();
+    setTimeout(() => { const n = [...document.querySelectorAll('#modal [data-gfield=name]')].at(-1); n?.focus(); n?.select(); });
+  },
+  set(i, field, value) {
+    this.draft[i][field] = value;
+    if (field === 'color') this.render();
+    else document.querySelectorAll('#modal .grow .chip')[i].textContent = value;
+  },
+  validate() {
+    const names = this.draft.map(g => g.name.trim().toLowerCase());
+    if (names.some(n => !n)) return 'Every tag needs a name.';
+    if (new Set(names).size !== names.length) return 'Two tags have the same name.';
     return null;
   },
 };

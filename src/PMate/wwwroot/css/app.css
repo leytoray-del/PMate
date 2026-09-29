@@ -50,12 +50,12 @@ button,input,select,textarea{font:inherit;color:inherit}
 .stat.danger b{color:var(--danger)} .stat.warn b{color:var(--warn)}
 .muted{color:var(--muted)} .small{font-size:12px}
 .empty{color:var(--muted);padding:10px 0;font-size:13px}
-/* colors for statuses and record types */
+/* colors for statuses, record types, task tags and projects */
 .c-gray{--c:#6b7280} .c-blue{--c:#2563eb} .c-purple{--c:#7c3aed} .c-amber{--c:#c27803} .c-red{--c:#dc2626}
-.c-green{--c:#16a34a} .c-teal{--c:#0d9488} .c-pink{--c:#db2777}
+.c-green{--c:#16a34a} .c-teal{--c:#0d9488} .c-pink{--c:#db2777} .c-orange{--c:#ea580c} .c-indigo{--c:#4f46e5}
 @media (prefers-color-scheme: dark){
   .c-gray{--c:#9ca3af} .c-blue{--c:#6b9bff} .c-purple{--c:#b794f6} .c-amber{--c:#fbbf24} .c-red{--c:#f87171}
-  .c-green{--c:#4ade80} .c-teal{--c:#2dd4bf} .c-pink{--c:#f472b6}
+  .c-green{--c:#4ade80} .c-teal{--c:#2dd4bf} .c-pink{--c:#f472b6} .c-orange{--c:#fb923c} .c-indigo{--c:#a5b4fc}
 }
 .chip{display:inline-block;font-size:12px;padding:0 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
 .chip.cc{background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);border-color:transparent}
@@ -88,10 +88,23 @@ textarea{width:100%;resize:vertical}
 .col.over{border-color:var(--accent);background:var(--accent-weak)}
 .col h3{font-size:13px;margin:2px 4px 8px;display:flex;gap:6px;align-items:center}
 .col h3 .muted{font-weight:400}
-.kcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;cursor:grab;box-shadow:var(--shadow);border-left:3px solid var(--line)}
-.kcard.p-high{border-left-color:var(--danger)} .kcard.p-medium{border-left-color:var(--warn)}
-.kcard .ttitle{white-space:normal}
-.kcard .tmeta{margin-top:4px}
+.kgroup{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;margin:12px 4px 6px}
+.kgroup .muted{font-weight:400}
+.col h3+.kgroup{margin-top:2px}
+/* Board card. The left bar has the project color (from the c-* class). */
+.kcard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:0 8px 8px 0;padding:8px 10px;margin-bottom:8px;cursor:grab;box-shadow:var(--shadow)}
+.kcard .ttitle{white-space:normal;font-weight:600;line-height:1.4}
+.kcard .ttitle .chip{font-weight:500;margin-right:2px;vertical-align:1px}
+.kcard.done .ttitle{color:var(--muted);text-decoration:line-through}
+.ksnip{font-size:12px;color:var(--muted);margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.kfoot{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+.kfoot .due{margin-left:auto}
+.kfoot .due.danger{background:var(--danger-weak);border-radius:6px;padding:0 6px}
+.kfoot .due.warn{background:var(--warn-weak);border-radius:6px;padding:0 6px}
+.kfoot .hi{color:var(--danger);font-weight:600}
+.av{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:600;flex:none;
+  background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+select[data-color-preview],.srow select{color:var(--c)}
 .pcard{cursor:pointer}
 .pcard:hover{border-color:var(--accent)}
 .pcard h3{margin:0 0 2px;font-size:15px}
@@ -102,7 +115,8 @@ th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertic
 th{font-size:12px;color:var(--muted);font-weight:600}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
-.ts th.day{cursor:pointer}
+.ts th.day,.ts td.day{cursor:pointer}
+.ts td.day.on{background:var(--accent-weak)}
 .ts th.day.on{color:var(--accent);background:var(--accent-weak)}
 .ts td.low{color:var(--warn)}
 .ts tfoot td{font-weight:600}
@@ -170,9 +184,22 @@ tr.click{cursor:pointer} tr.click:hover{background:var(--panel2)}
 .log .d{width:100px;flex:none;font-size:12px;color:var(--muted)}
 .log .c{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
 .log .h{font-size:12px;white-space:nowrap}
-.summary{font-family:Consolas,"Segoe UI",monospace;font-size:13px;min-height:220px}
+/* Timesheet day detail: one block per project, like a GTS entry */
+.gts{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.gts-head{display:flex;align-items:center;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.gts-head b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gts-h{font-weight:600}
+.gts-rec{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
+.gts-rec:last-child{border-bottom:0}
+.gts-rec .c{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.gts-rec .h{font-size:12px;white-space:nowrap;color:var(--muted)}
+.gts-rec .acts{visibility:hidden;white-space:nowrap}
+.gts-rec:hover .acts{visibility:visible}
+@media (hover:none){.gts-rec .acts{visibility:visible}}
 .srow{display:grid;grid-template-columns:110px 1fr auto auto auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .srow .ctl{display:flex;gap:2px}
+.srow.grow{grid-template-columns:110px 1fr 110px auto auto}
+.srow.grow .chip{justify-self:start}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1d2330;color:#fff;padding:8px 16px;border-radius:8px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
 .banner{background:var(--warn-weak);color:var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:14px;display:flex;gap:10px;align-items:center}

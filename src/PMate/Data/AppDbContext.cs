@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public DbSet<RaidItem> RaidItems => Set<RaidItem>();
     public DbSet<DeleteBatch> DeleteBatches => Set<DeleteBatch>();
     public DbSet<BoardStatus> Statuses => Set<BoardStatus>();
+    public DbSet<TaskTag> Tags => Set<TaskTag>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<User> Users => Set<User>();
 
@@ -38,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
         {
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Code).HasMaxLength(50);
+            e.Property(x => x.Color).HasMaxLength(20);
             e.HasIndex(x => x.Code);
         });
         b.Entity<ProjectMember>(e =>
@@ -81,6 +83,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
         {
             e.ToTable("Statuses");
             e.Property(x => x.Name).HasMaxLength(100);
+        });
+        b.Entity<TaskTag>(e =>
+        {
+            e.ToTable("Tags");
+            e.Property(x => x.Name).HasMaxLength(50);
+            e.Property(x => x.Color).HasMaxLength(20);
         });
         b.Entity<Setting>(e => e.HasKey(x => x.Key));
         b.Entity<User>(e =>

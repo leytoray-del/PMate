@@ -1,8 +1,8 @@
 // The main pages. Each view returns an HTML string for <main>.
 import { esc, today, parse, addDays, dayDiff, fmtMD, fmtDate, fmtFull, fmtH, round2, plural, by, download, WD, LOGTYPE, LOGCOLOR, PSTATUS, MSTATUS } from './util.js';
-import { db, proj, task, st, statuses, isDone, isOpen, isActivity, recentDone, firstOpen, projLabel, owners, openCommitCount, person, team } from './store.js';
+import { db, proj, task, st, statuses, tag, tags, projColor, isDone, isOpen, isActivity, recentDone, firstOpen, projLabel, owners, openCommitCount, person, team } from './store.js';
 import { ui, isAdmin } from './state.js';
-import { statusChip, dueInfo, taskMeta, taskList, sortTasks, commitList, logList, projOptions, opts, ownerList } from './components.js';
+import { statusChip, tagChip, projChipC, avatar, taskSnippet, dueInfo, taskMeta, taskList, sortTasks, commitList, logList, projOptions, opts, ownerList } from './components.js';
 import { raidTable, raidAttention, sortRaid } from './raid.js';
 import { noteTitle } from './notes.js';
 
@@ -80,13 +80,16 @@ views.board = () => {
   const b = ui.board;
   return `<div class="head"><h1>Task Board</h1>
     <div class="seg"><button class="${b.mode === 'kanban' ? 'on' : ''}" data-act="board-mode" data-mode="kanban">Board</button><button class="${b.mode === 'list' ? 'on' : ''}" data-act="board-mode" data-mode="list">List</button></div>
-    ${isAdmin() ? '<button class="btn" data-act="edit-statuses">Customize columns</button>' : ''}
+    ${isAdmin() ? '<button class="btn" data-act="edit-statuses">Customize columns</button><button class="btn" data-act="edit-tags">Customize tags</button>' : ''}
     <button class="btn primary" data-act="new-task">+ New task</button></div>
   <div class="bar">
     <input data-filter="q" placeholder="Search tasks and records" value="${esc(b.q)}" style="width:220px">
     <select data-filter="project"><option value="">All projects</option><option value="_none" ${b.project === '_none' ? 'selected' : ''}>No project</option>${projOptions(b.project, {none: '', closed: true})}</select>
     <select data-filter="owner" title="Whose tasks">${ownerFilterOptions(b.owner)}</select>
+    <select data-filter="tag" title="Kind of work"><option value="">All tags</option><option value="_none" ${b.tag === '_none' ? 'selected' : ''}>No tag</option>
+      ${tags().map(g => `<option value="${g.id}" ${g.id === b.tag ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>
     <select data-filter="due">${opts({'': 'Any due date', overdue: 'Overdue', today: 'Due today', week: 'Due within 7 days', nodue: 'No due date'}, b.due)}</select>
+    ${b.mode === 'kanban' ? `<select data-filter="group" title="Group the cards in each column">${opts({project: 'Group by project', tag: 'Group by tag', '': 'No groups'}, b.group)}</select>` : ''}
     <label class="small"><input type="checkbox" data-filter="showDone" ${b.showDone ? 'checked' : ''}> Show all done tasks</label>
   </div>
   <div id="board-body">${boardBody()}</div>`;
@@ -107,6 +110,7 @@ function boardTasks() {
   return db.tasks.filter(t => {
     if (b.project === '_none' ? t.projectId : b.project && t.projectId !== b.project) return false;
     if (b.owner === '_none' ? t.owner : b.owner && t.owner !== b.owner) return false;
+    if (b.tag === '_none' ? tag(t.tagId) : b.tag && t.tagId !== b.tag) return false;
     if (b.due === 'overdue' && !(isOpen(t) && t.due && t.due < td)) return false;
     if (b.due === 'today' && !(isOpen(t) && t.due === td)) return false;
     if (b.due === 'week' && !(isOpen(t) && t.due && t.due <= addDays(td, 7))) return false;
@@ -124,33 +128,71 @@ export function boardBody() {
   const list = sortTasks(boardTasks());
   if (ui.board.mode === 'list') {
     if (!list.length) return '<div class="card empty">No tasks match these filters</div>';
-    return `<div class="card"><table><thead><tr><th></th><th>Task</th><th>Project</th><th>Owner</th><th>Status</th><th>Due</th><th class="num">Hours</th></tr></thead><tbody>
+    return `<div class="card"><table><thead><tr><th></th><th>Task</th><th>Tag</th><th>Project</th><th>Owner</th><th>Status</th><th>Due</th><th class="num">Hours</th></tr></thead><tbody>
       ${list.map(t => {
         const d = dueInfo(t), p = proj(t.projectId), c = openCommitCount(t.id);
         const h = db.updates.filter(u => u.taskId === t.id).reduce((s, u) => s + (+u.hours || 0), 0);
         return `<tr class="click ${ui.taskId === t.id ? 'sel' : ''}" data-act="open-task" data-id="${t.id}">
           <td><input type="checkbox" data-act="toggle-done" data-id="${t.id}" ${isDone(t) ? 'checked' : ''}></td>
           <td>${esc(t.title)} ${c ? `<span class="chip warn">${plural(c, 'commitment')}</span>` : ''}</td>
-          <td>${esc(p ? (p.code || p.name) : '-')}</td><td>${esc(t.owner || '-')}</td>
+          <td>${tagChip(t.tagId)}</td><td>${p ? projChipC(p) : '-'}</td><td>${esc(t.owner || '-')}</td>
           <td>${statusChip(t.status)}</td>
           <td class="due ${d.cls}">${esc(d.txt)}</td><td class="num">${h ? fmtH(h) : ''}</td></tr>`;
       }).join('')}
       </tbody></table><div class="small muted" style="margin-top:8px">${plural(list.length, 'task')}</div></div>`;
   }
   const cols = statuses();
+  const groupOf = boardGroup(ui.board.group);
+  // Group headers only help when the cards on the board belong to more than one group.
+  const grouped = !!groupOf && new Set(list.map(t => groupOf(t).key)).size > 1;
   return `<div class="kanban" style="grid-template-columns:repeat(${cols.length},minmax(230px,1fr))">${cols.map(s => {
     const col = list.filter(t => st(t.status).id === s.id);
     return `<div class="col" data-drop="${s.id}"><h3><span class="sdot c-${s.color}"></span>${esc(s.name)} <span class="muted">${col.length}</span></h3>
-      ${col.map(t => {
-        const d = dueInfo(t);
-        return `<div class="kcard p-${t.priority} ${ui.taskId === t.id ? 'sel' : ''}" draggable="true" data-drag="${t.id}" data-act="open-task" data-id="${t.id}">
-          <div class="ttitle">${esc(t.title)}</div>
-          <div class="tmeta">${taskMeta(t, true, false)}</div>
-          <div class="due ${d.cls}" style="margin-top:4px">${esc(d.txt)}</div></div>`;
-      }).join('')}
+      ${grouped ? groupCards(col, groupOf).map(g => `<div class="kgroup"><span class="sdot c-${g.color}"></span>${esc(g.label)} <span class="muted">${g.items.length}</span></div>
+        ${g.items.map(t => kcard(t, ui.board.group)).join('')}`).join('') : col.map(t => kcard(t, '')).join('')}
     </div>`;
   }).join('')}</div>
-    <p class="small muted">Tip: drag a card to change its status. Done columns show tasks finished in the last 14 days only.</p>`;
+    <p class="small muted">Tip: drag a card to change its status. The colored bar on the left of a card shows its project. Done columns show tasks finished in the last 14 days only.</p>`;
+}
+
+/** Returns a function that gives a task's group ({key, label, color, order}), or null for no groups. */
+function boardGroup(field) {
+  if (field === 'project') return t => {
+    const p = proj(t.projectId);
+    return p ? {key: p.id, label: projLabel(p), color: projColor(p), order: '0' + projLabel(p).toLowerCase()} : {key: '', label: 'No project', color: 'gray', order: '1'};
+  };
+  if (field === 'tag') return t => {
+    const g = tag(t.tagId);
+    return g ? {key: g.id, label: g.name, color: g.color, order: String(g.sortOrder).padStart(4, '0')} : {key: '', label: 'No tag', color: 'gray', order: '9999'};
+  };
+  return null;
+}
+
+/** Splits a column's cards into groups. Cards keep their order inside a group. */
+function groupCards(list, groupOf) {
+  const groups = new Map();
+  for (const t of list) {
+    const g = groupOf(t);
+    if (!groups.has(g.key)) groups.set(g.key, {...g, items: []});
+    groups.get(g.key).items.push(t);
+  }
+  return [...groups.values()].sort(by(g => g.order));
+}
+
+/**
+ * A board card. Left bar = project color. Tag and title on the first line, then the latest update,
+ * then project, owner and due date. The group header already shows the project or tag, so the card leaves it out.
+ */
+function kcard(t, groupedBy) {
+  const d = dueInfo(t), p = proj(t.projectId), c = openCommitCount(t.id), snip = taskSnippet(t);
+  return `<div class="kcard c-${p ? projColor(p) : 'gray'} ${isDone(t) ? 'done' : ''} ${ui.taskId === t.id ? 'sel' : ''}" draggable="true" data-drag="${t.id}" data-act="open-task" data-id="${t.id}">
+    <div class="ttitle">${groupedBy === 'tag' ? '' : tagChip(t.tagId)} ${esc(t.title)}</div>
+    ${snip ? `<div class="ksnip" title="${esc(snip)}">${esc(snip)}</div>` : ''}
+    <div class="kfoot">${groupedBy === 'project' ? '' : projChipC(p)}${avatar(t.owner)}
+      ${t.priority === 'high' && !isDone(t) ? '<span class="hi" title="High priority">High</span>' : ''}
+      ${c ? `<span class="chip warn">${plural(c, 'commitment')}</span>` : ''}
+      ${t.due ? `<span class="due ${d.cls}">${esc(d.txt)}</span>` : ''}</div>
+  </div>`;
 }
 
 /* ---------- Projects ---------- */
@@ -170,7 +212,7 @@ views.projects = () => {
     const next = db.milestones.filter(m => m.projectId === p.id && m.status !== 'done').sort(by(m => m.planDate || '9999'))[0];
     const pct = ts.length ? Math.round(done / ts.length * 100) : 0;
     return `<div class="card pcard" data-act="open-project" data-id="${p.id}">
-      <div style="display:flex;gap:8px;align-items:center"><h3>${esc(p.name)}</h3><span style="margin-left:auto">${projChip(p)}</span></div>
+      <div style="display:flex;gap:8px;align-items:center"><span class="sdot c-${projColor(p)}"></span><h3>${esc(p.name)}</h3><span style="margin-left:auto">${projChip(p)}</span></div>
       <div class="small muted">${esc(p.code || 'No project code')}${p.client ? ' · ' + esc(p.client) : ''}${p.end ? ' · Ends ' + fmtMD(p.end) : ''}</div>
       <div class="prog"><i style="width:${pct}%"></i></div>
       <div class="small">${done}/${ts.length} tasks done ${late ? `<span class="chip danger">${late} overdue</span>` : ''}</div>
@@ -193,7 +235,7 @@ views.project = () => {
   const notes = db.notes.filter(n => n.projectId === p.id).sort((a, b) => b.noteDate.localeCompare(a.noteDate) || b.updatedAt - a.updatedAt);
   const left = p.end ? dayDiff(p.end, td) : null;
   return `<div class="head"><button class="btn" data-act="nav" data-view="projects">← Projects</button>
-    <h1>${esc(p.name)} ${projChip(p)}</h1>
+    <h1><span class="sdot c-${projColor(p)}" style="vertical-align:middle"></span> ${esc(p.name)} ${projChip(p)}</h1>
     <button class="btn" data-act="edit-project" data-id="${p.id}">Edit project</button>
     <button class="btn primary" data-act="new-task" data-project="${p.id}">+ New task</button></div>
   <div class="card small">
@@ -270,7 +312,7 @@ views.timesheet = () => {
     <button class="btn" data-act="export-csv">Export week (CSV)</button></div>
   <div class="card ts"><h2>${fmtMD(days[0])} – ${fmtFull(days[6])} <span class="muted small">Click a day to see its details</span><span class="r small">Week total <b>${fmtH(weekTotal)}</b></span></h2>
     <table><thead><tr><th>Project</th>${days.map(d => `<th class="num day ${d === ui.tsDay ? 'on' : ''}" data-act="ts-day" data-d="${d}">${WD[parse(d).getDay()]}<br>${fmtMD(d)}</th>`).join('')}<th class="num">Total</th></tr></thead>
-    <tbody>${keys.length ? keys.map(k => `<tr><td>${esc(projLabel(proj(k)))}</td>${days.map(d => `<td class="num">${rows[k][d] ? round2(rows[k][d]) : ''}</td>`).join('')}<td class="num"><b>${round2(days.reduce((s, d) => s + (rows[k][d] || 0), 0))}</b></td></tr>`).join('')
+    <tbody>${keys.length ? keys.map(k => `<tr><td>${esc(projLabel(proj(k)))}</td>${days.map(d => `<td class="num day ${d === ui.tsDay ? 'on' : ''}" data-act="ts-day" data-d="${d}">${rows[k][d] ? round2(rows[k][d]) : ''}</td>`).join('')}<td class="num"><b>${round2(days.reduce((s, d) => s + (rows[k][d] || 0), 0))}</b></td></tr>`).join('')
       : `<tr><td colspan="9" class="empty">No hours logged this week</td></tr>`}</tbody>
     <tfoot><tr><td>Daily total</td>${days.map(d => {
       const t = colTotal(d), wd = parse(d).getDay();
@@ -279,29 +321,62 @@ views.timesheet = () => {
     }).join('')}<td class="num">${round2(weekTotal)}</td></tr></tfoot></table>
     <div class="small muted" style="margin-top:6px">Workdays with less than ${std}h are shown in orange.</div>
   </div>
-  <div class="grid g2">
-    <div class="card"><h2>Records for ${fmtDate(ui.tsDay)} <span class="r">${other ? '' : `<button class="btn sm primary" data-act="quick-log" data-d="${ui.tsDay}">+ Log time</button>`}</span></h2>${logList(dayLogs)}</div>
-    <div class="card"><h2>Daily summary <span class="r"><button class="btn sm primary" data-act="copy-summary">Copy</button></span></h2>
-      <textarea class="summary" id="summary">${esc(daySummary(ui.tsDay))}</textarea>
-      <div class="small muted">You can edit the text before copying.</div></div>
-  </div>`;
+  ${dayDetail(ui.tsDay, other)}`;
 };
 
-export function daySummary(date) {
+// Records of one day, grouped by project, in the shape of a GTS entry: project, hours, content.
+function dayGroups(date) {
   const logs = db.updates.filter(u => u.date === date && isActivity(u) && ofTsUser(u)).sort(by(u => u.createdAt || 0));
-  if (!logs.length) return `${fmtFull(date)}\nNo records.`;
-  const total = logs.reduce((s, u) => s + (+u.hours || 0), 0);
   const groups = {};
   for (const u of logs) (groups[u.projectId || ''] = groups[u.projectId || ''] || []).push(u);
-  let out = `${fmtFull(date)} - Total ${fmtH(total)}\n`;
-  for (const [pid, list] of Object.entries(groups)) {
-    const h = list.reduce((s, u) => s + (+u.hours || 0), 0);
-    out += `\n[${pid ? projLabel(proj(pid)) : 'General'}] ${h ? fmtH(h) : ''}\n`;
-    for (const u of list) {
-      const t = task(u.taskId);
-      const tag = u.type === 'work' ? '' : `[${LOGTYPE[u.type]}] `;
-      out += `- ${tag}${t ? t.title + ': ' : ''}${u.text.replace(/\n+/g, ' ')}${u.hours ? ` (${fmtH(+u.hours)})` : ''}\n`;
-    }
+  return Object.entries(groups).map(([pid, list]) => ({pid, list, hours: list.reduce((s, u) => s + (+u.hours || 0), 0)}))
+    .sort((a, b) => !a.pid - !b.pid || projLabel(proj(a.pid)).localeCompare(projLabel(proj(b.pid))));
+}
+
+// One line of content per record, ready to paste into the GTS content box.
+const recordLine = u => {
+  const t = task(u.taskId);
+  return `${u.type === 'work' ? '' : `[${LOGTYPE[u.type]}] `}${t ? t.title + ': ' : ''}${u.text.replace(/
++/g, ' ')}`;
+};
+export const groupContent = (date, pid) => (dayGroups(date).find(g => g.pid === pid)?.list || []).map(recordLine).join('
+');
+
+function dayDetail(date, other) {
+  const groups = dayGroups(date);
+  const total = groups.reduce((s, g) => s + g.hours, 0);
+  return `<div class="card"><h2>${fmtFull(date)}${total ? ` <span class="chip">${fmtH(total)}</span>` : ''}
+    <span class="r">${other ? '' : `<button class="btn sm" data-act="quick-log" data-d="${date}">+ Log time</button>`}
+    ${groups.length ? `<button class="btn sm primary" data-act="copy-summary">Copy whole day</button>` : ''}</span></h2>
+    ${groups.length ? groups.map(g => {
+      const p = proj(g.pid);
+      return `<div class="gts">
+        <div class="gts-head">${p ? projChipC(p) : '<span class="chip">No project</span>'}<b>${esc(p ? p.name : 'No project')}</b>
+          ${g.hours ? `<button class="btn sm gts-h" data-act="copy-text" data-text="${round2(g.hours)}" title="Copy hours">${fmtH(g.hours)}</button>` : ''}
+          <button class="btn sm primary" data-act="copy-group" data-d="${date}" data-p="${g.pid}" title="Copy the content of all records below">Copy content</button></div>
+        ${g.list.map(u => {
+          const t = task(u.taskId);
+          return `<div class="gts-rec">
+            <div class="c">${u.type === 'work' ? '' : `<span class="chip cc c-${LOGCOLOR[u.type]}">${LOGTYPE[u.type]}</span> `}${t ? `<a href="#" data-act="open-task" data-id="${t.id}">${esc(t.title)}</a>: ` : ''}${esc(u.text)}</div>
+            <div class="h">${u.hours ? fmtH(+u.hours) : ''}</div>
+            ${other ? '' : `<span class="acts"><button class="btn link small" data-act="edit-log" data-id="${u.id}">Edit</button><button class="btn link small" data-act="del-log" data-id="${u.id}">Delete</button></span>`}</div>`;
+        }).join('')}</div>`;
+    }).join('') : '<div class="empty">No records on this day</div>'}
+  </div>`;
+}
+
+export function daySummary(date) {
+  const groups = dayGroups(date);
+  if (!groups.length) return `${fmtFull(date)}
+No records.`;
+  let out = `${fmtFull(date)} - Total ${fmtH(groups.reduce((s, g) => s + g.hours, 0))}
+`;
+  for (const g of groups) {
+    out += `
+[${g.pid ? projLabel(proj(g.pid)) : 'No project'}] ${g.hours ? fmtH(g.hours) : ''}
+`;
+    for (const u of g.list) out += `- ${recordLine(u)}${u.hours ? ` (${fmtH(+u.hours)})` : ''}
+`;
   }
   return out.trim();
 }
@@ -356,6 +431,10 @@ views.settings = () => {
   <div class="card"><h2>Board columns</h2>
     <p style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${statuses().map(x => `<span class="chip cc c-${x.color}">${esc(x.name)}${x.isDone ? ' ✓' : ''}</span>`).join('')}</p>
     ${admin ? '<button class="btn" data-act="edit-statuses">Customize columns</button>' : '<p class="small muted">Only an admin can change the columns.</p>'}
+  </div>
+  <div class="card"><h2>Task tags <span class="muted small">The kind of work, shown on board cards</span></h2>
+    <p style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${tags().map(g => tagChip(g.id)).join('') || '<span class="muted small">No tags</span>'}</p>
+    ${admin ? '<button class="btn" data-act="edit-tags">Customize tags</button>' : '<p class="small muted">Only an admin can change the tags.</p>'}
   </div>
   <div class="card"><h2>Data and backups</h2>
     ${admin ? `<div class="kv">

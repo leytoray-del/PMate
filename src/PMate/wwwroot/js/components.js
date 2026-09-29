@@ -1,9 +1,29 @@
 // Reusable pieces of HTML and small UI helpers.
-import { $, esc, today, dayDiff, fmtMD, fmtDate, fmtH, plural, by, LOGTYPE, LOGCOLOR, PRIO } from './util.js';
-import { db, proj, task, st, isDone, isOpen, recentDone, projLabel, owners, openCommitCount, statuses } from './store.js';
+import { $, esc, today, dayDiff, fmtMD, fmtDate, fmtH, plural, by, LOGTYPE, LOGCOLOR, PRIO, AUTO_COLORS } from './util.js';
+import { db, proj, task, st, tag, tags, projColor, isDone, isOpen, recentDone, projLabel, owners, openCommitCount, statuses } from './store.js';
 import { ui } from './state.js';
 
 export const statusChip = id => { const s = st(id); return s ? `<span class="chip cc c-${s.color}">${esc(s.name)}</span>` : ''; };
+
+export const tagChip = id => { const g = tag(id); return g ? `<span class="chip cc c-${g.color}">${esc(g.name)}</span>` : ''; };
+export const projChipC = p => p ? `<span class="chip cc c-${projColor(p)}" title="${esc(projLabel(p))}">${esc(p.code || p.name)}</span>` : '';
+
+/** Round badge with a person's initials. Its color comes from the name, so the same person always looks the same. */
+export function avatar(name) {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  const ini = (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : [...parts[0]].slice(0, 2).join('')).toUpperCase();
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `<span class="av c-${AUTO_COLORS[h % AUTO_COLORS.length]}" title="${esc(name)}">${esc(ini)}</span>`;
+}
+
+/** What the task is about: the latest update, or the description when there is none. */
+export function taskSnippet(t) {
+  const last = db.updates.filter(u => u.taskId === t.id && u.type !== 'status' && u.text)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))[0];
+  return last ? last.text : t.description || '';
+}
 
 export function dueInfo(t) {
   if (!t.due) return {cls: '', txt: 'No due date'};
@@ -18,7 +38,7 @@ export function dueInfo(t) {
 
 export function taskMeta(t, showProject, showStatus = true) {
   const p = proj(t.projectId), c = openCommitCount(t.id);
-  return `${showProject && p ? `<span class="chip">${esc(p.code || p.name)}</span>` : ''}
+  return `${tagChip(t.tagId)}${showProject ? projChipC(p) : ''}
     ${showStatus ? statusChip(t.status) : ''}
     ${t.owner ? `<span>${esc(t.owner)}</span>` : ''}
     ${c ? `<span class="chip warn">${plural(c, 'commitment')}</span>` : ''}`;
@@ -82,6 +102,7 @@ export function taskOptions(projectId, sel) {
 }
 export const opts = (map, sel) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
 export const statusOptions = sel => statuses().map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+export const tagOptions = sel => `<option value="">None</option>` + tags().map(g => `<option value="${g.id}" ${g.id === sel ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
 export const ownerList = () => `<datalist id="owners">${owners().map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
 
 /* ---------- RAID ---------- */

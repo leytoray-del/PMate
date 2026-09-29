@@ -3,7 +3,7 @@ import { today, weekStart } from './util.js';
 
 export const ui = {
   view: 'today',
-  board: {project: '', owner: '', q: '', due: '', mode: 'kanban', showDone: false},
+  board: {project: '', owner: '', tag: '', q: '', due: '', mode: 'kanban', group: 'project', showDone: false},
   projectId: null,
   showClosed: false,
   tsWeek: weekStart(today()),

@@ -1,8 +1,8 @@
 // Task panel docked on the right: task fields, "add an update" form, and the timeline.
 import { $, esc, today, ymd, dayDiff, fmtDate, fmtH, relDay, plural, LOGTYPE, LOGCOLOR, PRIO } from './util.js';
-import { db, task, proj, statuses, isDone, isActivity, firstOpen, saveTask } from './store.js';
+import { db, task, proj, projColor, statuses, isDone, isActivity, firstOpen, saveTask } from './store.js';
 import { ui, app } from './state.js';
-import { projOptions, msOptions, opts, statusOptions, ownerList } from './components.js';
+import { projOptions, msOptions, opts, statusOptions, tagOptions, ownerList } from './components.js';
 
 export function openTask(id) {
   ui.taskId = id;
@@ -38,7 +38,7 @@ export function renderDrawer() {
   if (!isNew && !task(ui.taskId)) return closeDrawer();
   if (isNew && !ui.newTask) return;
   const t = isNew
-    ? {id: '', title: ui.newTask.title || '', projectId: ui.newTask.projectId || '', milestoneId: '', owner: ui.me?.displayName || '', due: '', priority: 'medium', status: firstOpen()?.id, description: ''}
+    ? {id: '', title: ui.newTask.title || '', projectId: ui.newTask.projectId || '', milestoneId: '', owner: ui.me?.displayName || '', due: '', priority: 'medium', tagId: '', status: firstOpen()?.id, description: ''}
     : task(ui.taskId);
   const p = proj(t.projectId);
   d.hidden = false;
@@ -46,7 +46,7 @@ export function renderDrawer() {
   d.innerHTML = `
   <div class="dhead">
     <span class="small muted">${isNew ? 'New task' : 'Task'}</span>
-    ${!isNew ? `<span class="chip" id="d-proj" ${p ? '' : 'hidden'}>${esc(p ? p.code || p.name : '')}</span>` : ''}
+    ${!isNew ? `<span class="chip cc c-${projColor(p)}" id="d-proj" ${p ? '' : 'hidden'}>${esc(p ? p.code || p.name : '')}</span>` : ''}
     <span class="sp"></span>
     ${!isNew ? `<button class="btn sm danger" data-act="del-task" data-id="${t.id}">Delete</button>` : ''}
     <button class="btn icon" data-act="close-drawer" title="Close (Esc)">✕</button>
@@ -57,9 +57,10 @@ export function renderDrawer() {
       <div class="props">
         <span>Status</span><select name="status">${statusOptions(t.status)}</select>
         <span>Priority</span><select name="priority">${opts(PRIO, t.priority)}</select>
+        <span>Tag</span><select name="tagId" title="Kind of work">${tagOptions(t.tagId)}</select>
+        <span>Owner</span><input name="owner" list="owners" value="${esc(t.owner)}">
         <span>Project</span><select name="projectId">${projOptions(t.projectId)}</select>
         <span>Milestone</span><select name="milestoneId">${msOptions(t.projectId, t.milestoneId)}</select>
-        <span>Owner</span><input name="owner" list="owners" value="${esc(t.owner)}">
         <span>Due date</span><input type="date" name="due" value="${esc(t.due)}">
       </div>
       <textarea name="description" rows="3" placeholder="Description, scope, links…">${esc(t.description)}</textarea>
@@ -149,14 +150,14 @@ export async function autosaveTask(el) {
   const t = task(el.form.dataset.id);
   if (!t) return;
   const k = el.name, v = el.value;
-  if (!['title', 'status', 'priority', 'projectId', 'milestoneId', 'owner', 'due', 'description'].includes(k)) return;
+  if (!['title', 'status', 'priority', 'tagId', 'projectId', 'milestoneId', 'owner', 'due', 'description'].includes(k)) return;
   if (k === 'title' && !v.trim()) { el.value = t.title; return; }
   const changes = {[k]: v};
   if (k === 'projectId') changes.milestoneId = '';
   const saved = await saveTask(t, changes);
   if (k === 'projectId') {
     const p = proj(saved.projectId), chip = $('#d-proj');
-    if (chip) { chip.hidden = !p; chip.textContent = p ? p.code || p.name : ''; }
+    if (chip) { chip.hidden = !p; chip.textContent = p ? p.code || p.name : ''; chip.className = `chip cc c-${projColor(p)}`; }
   }
   if (k === 'status') refreshTimeline();
   app.render();

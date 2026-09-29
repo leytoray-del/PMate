@@ -171,4 +171,86 @@ public sealed class ServiceTests : IAsyncLifetime
         Assert.Equal("Mine", (await _db.Tasks.FindAsync(existing.Id))!.Title);
         Assert.Equal("todo", (await _db.Tasks.FindAsync("new1"))!.Status);
     }
+
+    [Fact]
+    public async Task New_database_has_the_default_tags()
+    {
+        var tags = await new TagService(_db).ListAsync();
+        Assert.Equal(["Meeting", "On-site", "Doc", "Review", "Confirm", "Follow-up", "Approve", "Report", "Fix", "Test"], tags.Select(t => t.Name));
+    }
+
+    [Fact]
+    public async Task A_task_keeps_a_known_tag_and_drops_an_unknown_one()
+    {
+        var t = await Tasks.CreateAsync(Input("Kick-off") with { TagId = "meeting" });
+        Assert.Equal("meeting", t.TagId);
+
+        var saved = await Tasks.UpdateAsync(t.Id, Input("Kick-off") with { TagId = "no-such-tag" });
+        Assert.Null(saved.Task.TagId);
+    }
+
+    [Fact]
+    public async Task Removing_a_tag_clears_it_from_tasks_also_in_the_trash()
+    {
+        var live = await Tasks.CreateAsync(Input("Live") with { TagId = "doc" });
+        var deleted = await Tasks.CreateAsync(Input("Deleted") with { TagId = "doc" });
+        await Tasks.DeleteAsync(deleted.Id);
+        var keep = (await new TagService(_db).ListAsync()).Where(t => t.Id != "doc").Select(t => new TagInput(t.Id, t.Name, t.Color)).ToList();
+
+        var tags = await new TagService(_db).ReplaceAsync([.. keep, new TagInput(null, "Workshop", "no-such-color")]);
+
+        Assert.DoesNotContain(tags, t => t.Id == "doc");
+        Assert.Equal("gray", tags.Single(t => t.Name == "Workshop").Color);
+        _db.ChangeTracker.Clear();
+        Assert.Null((await _db.Tasks.FindAsync(live.Id))!.TagId);
+        Assert.Null((await _db.Tasks.IgnoreQueryFilters().SingleAsync(x => x.Id == deleted.Id)).TagId);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("A name that is much too long")]
+    public async Task Tag_names_must_be_set_and_short(string name)
+    {
+        await Assert.ThrowsAsync<AppException>(() => new TagService(_db).ReplaceAsync([new TagInput(null, name, "blue")]));
+    }
+
+    [Fact]
+    public async Task Tag_names_must_be_unique()
+    {
+        await Assert.ThrowsAsync<AppException>(() => new TagService(_db).ReplaceAsync([new TagInput(null, "Doc", "blue"), new TagInput(null, "doc", "red")]));
+    }
+
+    [Fact]
+    public async Task Project_color_must_be_a_known_color()
+    {
+        var p = await Projects.SaveAsync(null, new ProjectInput("CRM", null, null, null, null, null, null, "teal"));
+        Assert.Equal("teal", p.Color);
+        p = await Projects.SaveAsync(p.Id, new ProjectInput("CRM", null, null, null, null, null, null, "neon"));
+        Assert.Null(p.Color);
+    }
+
+    [Fact]
+    public async Task Import_drops_unknown_tags_and_a_replace_restores_the_backup_tags()
+    {
+        var data = new DataService(_db, new SettingsService(_db), new StatusService(_db));
+        var json = JsonSerializer.SerializeToElement(new
+        {
+            format = "pmate", version = 6, exportedAt = DateTime.UtcNow,
+            statuses = new object[] { new { id = "todo", name = "To Do", color = "gray", isDone = false }, new { id = "done", name = "Done", color = "green", isDone = true } },
+            tags = new object[] { new { id = "call", name = "Call", color = "blue" } },
+            projects = Array.Empty<object>(), milestones = Array.Empty<object>(), updates = Array.Empty<object>(),
+            tasks = new object[]
+            {
+                new { id = "t1", title = "Phone vendor", status = "todo", priority = "low", tagId = "call" },
+                new { id = "t2", title = "Old tag", status = "todo", priority = "low", tagId = "gone" },
+            },
+        });
+
+        await data.ImportAsync(json, replace: true);
+
+        _db.ChangeTracker.Clear();
+        Assert.Equal(["Call"], (await new TagService(_db).ListAsync()).Select(t => t.Name));
+        Assert.Equal("call", (await _db.Tasks.FindAsync("t1"))!.TagId);
+        Assert.Null((await _db.Tasks.FindAsync("t2"))!.TagId);
+    }
 }

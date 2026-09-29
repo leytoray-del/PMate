@@ -55,8 +55,9 @@ public static class Endpoints
         api.MapGet("/trash", (TrashService s) => s.ListAsync());
         api.MapPost("/trash/{id}/restore", async (string id, TrashService s) => { await s.RestoreAsync(id); return Results.NoContent(); });
 
-        // Board columns and settings
+        // Board columns, task tags and settings
         api.MapPut("/statuses", (List<StatusInput> input, StatusService s) => s.ReplaceAsync(input)).RequireAuthorization(AuthSetup.AdminPolicy);
+        api.MapPut("/tags", (List<TagInput> input, TagService s) => s.ReplaceAsync(input)).RequireAuthorization(AuthSetup.AdminPolicy);
         api.MapGet("/settings", (SettingsService s) => s.GetAsync());
         api.MapPut("/settings", (AppSettings input, SettingsService s) => s.SaveAsync(input)).RequireAuthorization(AuthSetup.AdminPolicy);
 

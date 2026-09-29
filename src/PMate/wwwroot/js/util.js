@@ -37,7 +37,10 @@ export function download(name, text, type) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-export const COLORS = ['gray', 'blue', 'purple', 'amber', 'red', 'green', 'teal', 'pink'];
+export const COLORS = ['gray', 'blue', 'purple', 'amber', 'red', 'green', 'teal', 'pink', 'orange', 'indigo'];
+// Colors given to projects that have none set. Red and gray are left out: red means late, gray means "none".
+// Indigo is left out too: it looks too much like blue and purple.
+export const AUTO_COLORS = ['blue', 'teal', 'purple', 'orange', 'pink', 'green', 'amber'];
 export const PRIO = {high: 'High', medium: 'Medium', low: 'Low'};
 export const LOGTYPE = {work: 'Work log', note: 'Note', commit: 'Commitment', decision: 'Decision', risk: 'Risk / Issue'};
 export const LOGCOLOR = {work: 'blue', note: 'gray', commit: 'amber', decision: 'green', risk: 'red', status: 'gray'};

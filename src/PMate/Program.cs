@@ -14,6 +14,7 @@ builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={path
 builder.Services.AddPMateAuth(paths);
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<StatusService>();
+builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<TaskService>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<DataService>();

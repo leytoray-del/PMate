@@ -4,9 +4,9 @@ import { api } from './api.js';
 import * as store from './store.js';
 import { db, task, isDone, isOpen, firstOpen, firstDone } from './store.js';
 import { ui, app, isAdmin } from './state.js';
-import { views, boardBody, daySummary, exportCsv } from './views.js';
+import { views, boardBody, daySummary, groupContent, exportCsv } from './views.js';
 import { openTask, newTask, closeDrawer, renderDrawer, refreshTimeline, autosaveTask, syncDrawerStatus } from './drawer.js';
-import { quickLogModal, editLogModal, commitModal, projectModal, milestoneModal, teamModal, statusEditor } from './modals.js';
+import { quickLogModal, editLogModal, commitModal, projectModal, milestoneModal, teamModal, statusEditor, tagEditor } from './modals.js';
 import { toast, hideToast, closeModal, msOptions, taskOptions } from './components.js';
 import { notesView, noteListHtml, noteEdited, flushNote, openNote, createNote, noteSearchChanged, editorSelection, mountNoteEditor, destroyNoteEditor,
   reloadNotes } from './notes.js';
@@ -81,7 +81,7 @@ const forms = {
   async task(f, d) {
     if (f.dataset.id) { document.activeElement?.blur(); return; } // existing tasks save field by field
     const t = await store.createTask({title: d.get('title'), projectId: d.get('projectId'), milestoneId: d.get('milestoneId'), owner: d.get('owner'),
-      due: d.get('due'), status: d.get('status'), priority: d.get('priority'), description: d.get('description')});
+      due: d.get('due'), status: d.get('status'), priority: d.get('priority'), tagId: d.get('tagId'), description: d.get('description')});
     openTask(t.id);
     toast('Task created');
   },
@@ -113,7 +113,7 @@ const forms = {
   },
   async project(f, d) {
     const id = f.dataset.id;
-    const p = await store.saveProject(id, Object.fromEntries(['name', 'code', 'client', 'start', 'end', 'status', 'description'].map(k => [k, d.get(k)])));
+    const p = await store.saveProject(id, Object.fromEntries(['name', 'code', 'color', 'client', 'start', 'end', 'status', 'description'].map(k => [k, d.get(k)])));
     if (!id) { ui.projectId = p.id; ui.view = 'project'; }
     closeModal();
     render();
@@ -206,6 +206,16 @@ const forms = {
 };
 
 /* ---------- click actions ---------- */
+// Copy text to the clipboard. The fallback is for plain http, where the clipboard API is missing.
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = Object.assign(document.createElement('textarea'), {value: text});
+    document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  toast('Copied');
+}
+
 async function toggleDone(t) {
   const saved = await store.setStatus(t, isDone(t) ? firstOpen().id : firstDone().id);
   syncDrawerStatus(saved);
@@ -365,7 +375,7 @@ const actions = {
     toast('Test reminder sent. Look near the clock.');
   },
   'board-mode': a => { ui.board.mode = a.dataset.mode; render(); },
-  'board-filter': a => { Object.assign(ui.board, {project: '', owner: '', q: '', due: a.dataset.due}); ui.view = 'board'; render(); },
+  'board-filter': a => { Object.assign(ui.board, {project: '', owner: '', tag: '', q: '', due: a.dataset.due}); ui.view = 'board'; render(); },
   'edit-statuses': () => statusEditor.start(),
   's-move': a => statusEditor.move(+a.dataset.i, +a.dataset.d),
   's-del': a => statusEditor.remove(+a.dataset.i),
@@ -379,6 +389,19 @@ const actions = {
     if (ui.taskId) renderDrawer();
     toast('Columns saved');
   },
+  'edit-tags': () => tagEditor.start(),
+  'g-move': a => tagEditor.move(+a.dataset.i, +a.dataset.d),
+  'g-del': a => tagEditor.remove(+a.dataset.i),
+  'g-add': () => tagEditor.add(),
+  'g-save': async () => {
+    const err = tagEditor.validate();
+    if (err) return toast(err, true);
+    await store.saveTags(tagEditor.draft);
+    closeModal();
+    render();
+    if (ui.taskId) renderDrawer();
+    toast('Tags saved');
+  },
   'quick-log': a => quickLogModal(a.dataset.d),
   'ts-week': a => {
     const n = +a.dataset.n;
@@ -387,11 +410,9 @@ const actions = {
     render();
   },
   'ts-day': a => { ui.tsDay = a.dataset.d; render(); },
-  'copy-summary': async () => {
-    const txt = $('#summary').value;
-    try { await navigator.clipboard.writeText(txt); } catch { $('#summary').select(); document.execCommand('copy'); }
-    toast('Copied to clipboard');
-  },
+  'copy-summary': () => copy(daySummary(ui.tsDay)),
+  'copy-group': a => copy(groupContent(a.dataset.d, a.dataset.p)),
+  'copy-text': a => copy(a.dataset.text),
   'export-csv': () => exportCsv(),
   'import-json': () => $('#import-input').click(),
   'backup-now': async () => {
@@ -470,6 +491,7 @@ document.addEventListener('input', e => {
     $('#board-body').innerHTML = boardBody();
   }
   if (el.dataset.sfield === 'name') statusEditor.set(+el.dataset.i, 'name', el.value);
+  if (el.dataset.gfield === 'name') tagEditor.set(+el.dataset.i, 'name', el.value);
   if (el.hasAttribute('data-note-search')) noteSearchChanged(el.value);
   if (el.form?.dataset.form === 'note' && ['title', 'body', 'tags'].includes(el.name)) noteEdited(el.form);
 });
@@ -480,6 +502,8 @@ document.addEventListener('change', e => {
   if (el.dataset.actChange === 'ts-user') { ui.tsUser = el.value; render(); }
   if (el.dataset.sfield === 'color') statusEditor.set(+el.dataset.i, 'color', el.value);
   if (el.dataset.sfield === 'isDone') statusEditor.set(+el.dataset.i, 'isDone', el.checked);
+  if (el.dataset.gfield === 'color') tagEditor.set(+el.dataset.i, 'color', el.value);
+  if (el.dataset.colorPreview) el.className = `c-${el.value || el.dataset.colorPreview}`;
   if (el.hasAttribute('data-task-target')) form.taskId.innerHTML = taskOptions(el.value, '');
   if (form?.dataset.form === 'task') {
     if (el.name === 'projectId') form.milestoneId.innerHTML = msOptions(el.value, '');

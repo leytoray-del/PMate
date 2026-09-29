@@ -35,7 +35,8 @@ public static class UpdateTypes
 
 public static class StatusColors
 {
-    public static readonly string[] All = ["gray", "blue", "purple", "amber", "red", "green", "teal", "pink"];
+    /// <summary>Colors for board columns, task tags and projects.</summary>
+    public static readonly string[] All = ["gray", "blue", "purple", "amber", "red", "green", "teal", "pink", "orange", "indigo"];
 }
 
 /// <summary>RAID = Risks, Assumptions, Issues, Dependencies.</summary>
@@ -72,6 +73,8 @@ public class Project : ISoftDelete
     public string Id { get; set; } = Ids.New();
     public string Name { get; set; } = "";
     public string? Code { get; set; }
+    /// <summary>One of <see cref="StatusColors"/>. Null means the UI picks a color from the id.</summary>
+    public string? Color { get; set; }
     public string? Client { get; set; }
     public string Status { get; set; } = ProjectStatuses.Active;
     public DateOnly? Start { get; set; }
@@ -113,6 +116,8 @@ public class TaskItem : ISoftDelete
     public DateOnly? Due { get; set; }
     public string Status { get; set; } = "";
     public string Priority { get; set; } = Priorities.Medium;
+    /// <summary>The kind of work, see <see cref="TaskTag"/>. Null means no tag.</summary>
+    public string? TagId { get; set; }
     public string? Description { get; set; }
     public bool IsSample { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -265,6 +270,15 @@ public class BoardStatus
     public string Name { get; set; } = "";
     public string Color { get; set; } = "gray";
     public bool IsDone { get; set; }
+    public int SortOrder { get; set; }
+}
+
+/// <summary>The kind of work a task is, for example Meeting or Doc. Admins can rename, reorder, add and remove tags.</summary>
+public class TaskTag
+{
+    public string Id { get; set; } = Ids.New();
+    public string Name { get; set; } = "";
+    public string Color { get; set; } = "gray";
     public int SortOrder { get; set; }
 }
 

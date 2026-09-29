@@ -5,7 +5,7 @@ using PMate.Domain;
 namespace PMate.Services;
 
 public record TaskInput(string? Title, string? ProjectId, string? MilestoneId, string? Owner, DateOnly? Due,
-    string? Status, string? Priority, string? Description);
+    string? Status, string? Priority, string? Description, string? TagId = null);
 
 public record TaskSaveResult(TaskItem Task, TaskUpdate? StatusChange);
 
@@ -164,6 +164,8 @@ public class TaskService(AppDbContext db, ICurrentUser user, TrashService trash)
         t.Due = i.Due;
         t.Priority = Priorities.All.Contains(i.Priority) ? i.Priority! : Priorities.Medium;
         t.Description = Text.Clean(i.Description);
+        var tagId = Text.Clean(i.TagId);
+        t.TagId = tagId is not null && await db.Tags.AnyAsync(x => x.Id == tagId) ? tagId : null;
         var status = statuses.FirstOrDefault(s => s.Id == i.Status)
             ?? (isNew ? null : statuses.FirstOrDefault(s => s.Id == t.Status))
             ?? statuses.First(s => !s.IsDone);

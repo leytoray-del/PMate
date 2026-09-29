@@ -10,10 +10,10 @@ public record Snapshot(
     string Format, int Version, DateTime ExportedAt, AppSettings Settings, List<BoardStatus> Statuses,
     List<Project> Projects, List<Milestone> Milestones, List<TaskItem> Tasks, List<TaskUpdate> Updates,
     List<Note>? Notes = null, List<RaidItem>? RaidItems = null,
-    List<ProjectMember>? ProjectMembers = null, List<Person>? People = null)
+    List<ProjectMember>? ProjectMembers = null, List<Person>? People = null, List<TaskTag>? Tags = null)
 {
     public const string FormatName = "pmate";
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 }
 
 /// <summary>A user as other users see them: for team lists and task owners. No sign-in details.</summary>
@@ -50,12 +50,13 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
             await db.Notes.AsNoTracking().ToListAsync(),
             await db.RaidItems.AsNoTracking().ToListAsync(),
             members,
-            people);
+            people,
+            await new TagService(db).ListAsync());
     }
 
     /// <summary>
     /// Imports a backup. "replace" deletes current data first and also restores settings and columns.
-    /// "merge" only adds rows whose id does not exist yet, and maps unknown columns to existing ones.
+    /// "merge" only adds rows whose id does not exist yet, maps unknown columns to existing ones, and drops unknown tags.
     /// Accepts this app's format and the older single-file HTML format.
     /// </summary>
     public async Task<ImportResult> ImportAsync(JsonElement root, bool replace)
@@ -71,6 +72,8 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
                 await statuses.ReplaceAsync(data.Statuses.Select(s => new StatusInput(s.Id, s.Name, s.Color, s.IsDone)).ToList());
             }
             if (data.Settings is not null) await settings.SaveAsync(data.Settings);
+            // Backups from before tags existed have none. Keep the current tags then.
+            if (data.Tags is not null) await new TagService(db).ReplaceAsync(data.Tags.Select(t => new TagInput(t.Id, t.Name, t.Color)).ToList());
         }
 
         var cols = await statuses.ListAsync();
@@ -80,6 +83,8 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
         {
             t.Status = importedDone.Contains(t.Status) ? cols.First(s => s.IsDone).Id : cols.First(s => !s.IsDone).Id;
         }
+        var tags = (await db.Tags.Select(x => x.Id).ToListAsync()).ToHashSet();
+        foreach (var t in data.Tasks.Where(t => t.TagId is not null && !tags.Contains(t.TagId))) t.TagId = null;
 
         var result = new ImportResult(
             await AddNewAsync(db.Projects, data.Projects, p => p.Id),
@@ -109,7 +114,7 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
         await db.Projects.IgnoreQueryFilters().Where(p => p.IsSample).ExecuteDeleteAsync();
     }
 
-    /// <summary>Permanently deletes all projects, tasks, records, notes, RAID items and the trash. Settings and columns are kept.</summary>
+    /// <summary>Permanently deletes all projects, tasks, records, notes, RAID items and the trash. Settings, columns and tags are kept.</summary>
     public async Task ClearAsync()
     {
         await db.Updates.IgnoreQueryFilters().ExecuteDeleteAsync();
@@ -154,13 +159,14 @@ public class DataService(AppDbContext db, SettingsService settings, StatusServic
         var s = root.Deserialize<Snapshot>(Json) ?? throw new AppException("The file is empty.");
         // "pm-assistant" is the format name from before the app was renamed to PMate.
         if (s.Format is not (Snapshot.FormatName or "pm-assistant")) throw new AppException("This file is not a PMate backup.");
-        return new ImportData(s.Settings, s.Statuses ?? [], s.Projects ?? [], s.Milestones ?? [], s.Tasks ?? [], s.Updates ?? [], s.Notes, s.RaidItems, s.ProjectMembers);
+        return new ImportData(s.Settings, s.Statuses ?? [], s.Projects ?? [], s.Milestones ?? [], s.Tasks ?? [], s.Updates ?? [], s.Notes, s.RaidItems, s.ProjectMembers, s.Tags);
     }
 }
 
 public record ImportData(AppSettings? Settings, List<BoardStatus> Statuses, List<Project> Projects,
     List<Milestone> Milestones, List<TaskItem> Tasks, List<TaskUpdate> Updates,
-    List<Note>? Notes = null, List<RaidItem>? RaidItems = null, List<ProjectMember>? ProjectMembers = null);
+    List<Note>? Notes = null, List<RaidItem>? RaidItems = null, List<ProjectMember>? ProjectMembers = null,
+    List<TaskTag>? Tags = null);
 
 /// <summary>Reads backups from the first version: a single HTML file that stored data in the browser.</summary>
 internal static class LegacyFormat

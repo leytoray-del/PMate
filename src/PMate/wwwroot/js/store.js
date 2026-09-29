@@ -1,10 +1,10 @@
 // Client copy of the data, loaded from the server, and all changes to it.
 // Every change goes to the API first. The local copy is updated from the server's answer.
 import { api } from './api.js';
-import { by } from './util.js';
+import { by, AUTO_COLORS } from './util.js';
 import { ui } from './state.js';
 
-export const db = {settings: {hoursPerDay: 8, backupDir: ''}, statuses: [], projects: [], milestones: [], tasks: [], updates: [], notes: [], raidItems: [],
+export const db = {settings: {hoursPerDay: 8, backupDir: ''}, statuses: [], tags: [], projects: [], milestones: [], tasks: [], updates: [], notes: [], raidItems: [],
   projectMembers: [], people: []};
 
 const TIME_KEYS = new Set(['createdAt', 'updatedAt', 'doneAt', 'exportedAt']);
@@ -25,6 +25,7 @@ export async function load() {
   const s = await api.get('/api/snapshot');
   db.settings = norm(s.settings);
   db.statuses = s.statuses.map(norm).sort(by(x => x.sortOrder));
+  db.tags = (s.tags || []).map(norm).sort(by(x => x.sortOrder));
   db.projects = s.projects.map(norm);
   db.milestones = s.milestones.map(norm);
   db.tasks = s.tasks.map(norm);
@@ -43,6 +44,16 @@ export const note = id => db.notes.find(n => n.id === id);
 export const raid = id => db.raidItems.find(r => r.id === id);
 export const statuses = () => db.statuses;
 export const st = id => db.statuses.find(s => s.id === id) || db.statuses[0];
+export const tags = () => db.tags;
+export const tag = id => id ? db.tags.find(x => x.id === id) : undefined;
+/** The project's own color, or one picked from its id so it stays the same between visits. */
+export function projColor(p) {
+  if (!p) return 'gray';
+  if (p.color) return p.color;
+  let h = 0;
+  for (const c of p.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return AUTO_COLORS[h % AUTO_COLORS.length];
+}
 export const firstOpen = () => db.statuses.find(s => !s.isDone) || db.statuses[0];
 export const firstDone = () => db.statuses.find(s => s.isDone) || db.statuses[db.statuses.length - 1];
 export const isDone = t => !!st(t.status)?.isDone;
@@ -59,7 +70,7 @@ export const team = projectId => db.projectMembers.filter(m => m.projectId === p
 
 /* ---------- tasks ---------- */
 const taskBody = t => ({title: t.title, projectId: t.projectId, milestoneId: t.milestoneId, owner: t.owner,
-  due: t.due, status: t.status, priority: t.priority, description: t.description});
+  due: t.due, status: t.status, priority: t.priority, description: t.description, tagId: t.tagId || null});
 
 export async function createTask(input) {
   return upsert(db.tasks, norm(await api.post('/api/tasks', taskBody(input))));
@@ -158,6 +169,10 @@ export async function restore(undoId) {
 export async function saveSettings(s) { db.settings = norm(await api.put('/api/settings', s)); }
 export async function saveStatuses(list) {
   await api.put('/api/statuses', list.map(({id, name, color, isDone}) => ({id, name, color, isDone})));
+  await load();
+}
+export async function saveTags(list) {
+  await api.put('/api/tags', list.map(({id, name, color}) => ({id, name, color})));
   await load();
 }
 export async function importData(json, mode) {

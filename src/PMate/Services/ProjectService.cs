@@ -4,7 +4,8 @@ using PMate.Domain;
 
 namespace PMate.Services;
 
-public record ProjectInput(string? Name, string? Code, string? Client, string? Status, DateOnly? Start, DateOnly? End, string? Description);
+public record ProjectInput(string? Name, string? Code, string? Client, string? Status, DateOnly? Start, DateOnly? End, string? Description,
+    string? Color = null);
 
 public record MilestoneInput(string? ProjectId, string? Name, DateOnly? PlanDate, DateOnly? ActualDate, string? Status, string? Note);
 
@@ -15,6 +16,7 @@ public class ProjectService(AppDbContext db, ICurrentUser user, TrashService tra
         var p = id is null ? new Project { CreatedBy = user.Name, CreatedById = user.Id } : await db.Projects.FindAsync(id) ?? throw new AppException("Project not found.", 404);
         p.Name = Text.Clean(i.Name) ?? throw new AppException("Project name is required.");
         p.Code = Text.Clean(i.Code);
+        p.Color = StatusColors.All.Contains(i.Color) ? i.Color : null;
         p.Client = Text.Clean(i.Client);
         p.Status = ProjectStatuses.All.Contains(i.Status) ? i.Status! : ProjectStatuses.Active;
         p.Start = i.Start;
